@@ -7,9 +7,11 @@ import GameOverModal from "./GameOverModal";
 type Player = "X" | "O";
 type CellValue = Player | null;
 type Board = CellValue[];
+type Difficulty = "easy" | "medium" | "hard";
 
 interface GameBoardProps {
   onBack: () => void;
+  difficulty: Difficulty;
 }
 
 const WINNING_COMBINATIONS = [
@@ -22,7 +24,7 @@ const INITIAL_COINS = 100;
 const TURN_TIME = 20;
 const MAX_AUTO_PLAYS = 5;
 
-export default function GameBoard({ onBack }: GameBoardProps) {
+export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
   const [board, setBoard] = useState<Board>(Array(9).fill(null));
   const [playerCoins, setPlayerCoins] = useState(INITIAL_COINS);
   const [computerCoins, setComputerCoins] = useState(INITIAL_COINS);
@@ -36,6 +38,7 @@ export default function GameBoard({ onBack }: GameBoardProps) {
   const [score, setScore] = useState({ player: 0, computer: 0 });
   const [round, setRound] = useState(1);
   const [gameOver, setGameOver] = useState(false);
+  const [isComputerThinking, setIsComputerThinking] = useState(false);
 
   const checkWinner = useCallback((currentBoard: Board): { winner: Player | "tie" | null; line: number[] | null } => {
     for (const combo of WINNING_COMBINATIONS) {
@@ -65,7 +68,55 @@ export default function GameBoard({ onBack }: GameBoardProps) {
 
   const computerMove = useCallback((currentBoard: Board): number => {
     const emptyCells = getEmptyCells(currentBoard);
-    // Simple AI: try to win, block, or random
+    
+    // Easy: mostly random with occasional blocking
+    if (difficulty === "easy") {
+      if (Math.random() < 0.3) {
+        // 30% chance to make a smart move
+        for (const combo of WINNING_COMBINATIONS) {
+          const [a, b, c] = combo;
+          const values = [currentBoard[a], currentBoard[b], currentBoard[c]];
+          const oCount = values.filter(v => v === "O").length;
+          const emptyCount = values.filter(v => v === null).length;
+          if (oCount === 2 && emptyCount === 1) {
+            const emptyIdx = [a, b, c].find(i => currentBoard[i] === null);
+            if (emptyIdx !== undefined) return emptyIdx;
+          }
+        }
+      }
+      return emptyCells[Math.floor(Math.random() * emptyCells.length)];
+    }
+    
+    // Medium: try to win, block, prefer center, then random
+    if (difficulty === "medium") {
+      // Try to win
+      for (const combo of WINNING_COMBINATIONS) {
+        const [a, b, c] = combo;
+        const values = [currentBoard[a], currentBoard[b], currentBoard[c]];
+        const oCount = values.filter(v => v === "O").length;
+        const emptyCount = values.filter(v => v === null).length;
+        if (oCount === 2 && emptyCount === 1) {
+          const emptyIdx = [a, b, c].find(i => currentBoard[i] === null);
+          if (emptyIdx !== undefined) return emptyIdx;
+        }
+      }
+      // Block player
+      for (const combo of WINNING_COMBINATIONS) {
+        const [a, b, c] = combo;
+        const values = [currentBoard[a], currentBoard[b], currentBoard[c]];
+        const xCount = values.filter(v => v === "X").length;
+        const emptyCount = values.filter(v => v === null).length;
+        if (xCount === 2 && emptyCount === 1) {
+          const emptyIdx = [a, b, c].find(i => currentBoard[i] === null);
+          if (emptyIdx !== undefined) return emptyIdx;
+        }
+      }
+      if (emptyCells.includes(4)) return 4;
+      return emptyCells[Math.floor(Math.random() * emptyCells.length)];
+    }
+    
+    // Hard: minimax-like strategy with perfect play
+    // Try to win
     for (const combo of WINNING_COMBINATIONS) {
       const [a, b, c] = combo;
       const values = [currentBoard[a], currentBoard[b], currentBoard[c]];
@@ -76,6 +127,7 @@ export default function GameBoard({ onBack }: GameBoardProps) {
         if (emptyIdx !== undefined) return emptyIdx;
       }
     }
+    // Block player
     for (const combo of WINNING_COMBINATIONS) {
       const [a, b, c] = combo;
       const values = [currentBoard[a], currentBoard[b], currentBoard[c]];
@@ -86,15 +138,97 @@ export default function GameBoard({ onBack }: GameBoardProps) {
         if (emptyIdx !== undefined) return emptyIdx;
       }
     }
+    // Create a fork (two ways to win)
+    for (const cell of emptyCells) {
+      const testBoard = [...currentBoard];
+      testBoard[cell] = "O";
+      let winPaths = 0;
+      for (const combo of WINNING_COMBINATIONS) {
+        const [a, b, c] = combo;
+        const values = [testBoard[a], testBoard[b], testBoard[c]];
+        const oCount = values.filter(v => v === "O").length;
+        const emptyCount = values.filter(v => v === null).length;
+        if (oCount === 2 && emptyCount === 1) winPaths++;
+      }
+      if (winPaths >= 2) return cell;
+    }
+    // Block player fork
+    for (const cell of emptyCells) {
+      const testBoard = [...currentBoard];
+      testBoard[cell] = "X";
+      let winPaths = 0;
+      for (const combo of WINNING_COMBINATIONS) {
+        const [a, b, c] = combo;
+        const values = [testBoard[a], testBoard[b], testBoard[c]];
+        const xCount = values.filter(v => v === "X").length;
+        const emptyCount = values.filter(v => v === null).length;
+        if (xCount === 2 && emptyCount === 1) winPaths++;
+      }
+      if (winPaths >= 2) return cell;
+    }
+    // Center
     if (emptyCells.includes(4)) return 4;
+    // Corners
+    const corners = [0, 2, 6, 8].filter(c => emptyCells.includes(c));
+    if (corners.length > 0) return corners[Math.floor(Math.random() * corners.length)];
+    // Edges
     return emptyCells[Math.floor(Math.random() * emptyCells.length)];
-  }, []);
+  }, [difficulty]);
+
+  const getComputerBid = useCallback(() => {
+    const maxBid = computerCoins;
+    if (difficulty === "easy") {
+      // Easy: bid low, 1-15% of coins
+      return Math.min(Math.floor(Math.random() * Math.max(1, maxBid * 0.15)) + 1, maxBid);
+    } else if (difficulty === "medium") {
+      // Medium: bid moderately, 5-30% of coins
+      return Math.min(Math.floor(Math.random() * Math.max(1, maxBid * 0.25)) + Math.floor(maxBid * 0.05) + 1, maxBid);
+    } else {
+      // Hard: bid strategically, 10-50% of coins
+      const strategicBid = Math.floor(Math.random() * Math.max(1, maxBid * 0.4)) + Math.floor(maxBid * 0.1) + 1;
+      return Math.min(strategicBid, maxBid);
+    }
+  }, [computerCoins, difficulty]);
+
+  const executeComputerMove = useCallback((currentBoard: Board) => {
+    setIsComputerThinking(true);
+    const thinkTime = difficulty === "easy" ? 500 : difficulty === "medium" ? 800 : 1200;
+    
+    setTimeout(() => {
+      const moveIndex = computerMove(currentBoard);
+      setIsComputerThinking(false);
+      
+      const newBoard = [...currentBoard];
+      newBoard[moveIndex] = "O";
+      setBoard(newBoard);
+      
+      const result = checkWinner(newBoard);
+      if (result.winner) {
+        setWinner(result.winner);
+        setWinningLine(result.line);
+        if (result.winner === "O") {
+          setScore(prev => ({ ...prev, computer: prev.computer + 1 }));
+        } else if (result.winner === "X") {
+          setScore(prev => ({ ...prev, player: prev.player + 1 }));
+        }
+        setTimeout(() => {
+          const newPlayerScore = result.winner === "X" ? score.player + 1 : score.player;
+          const newComputerScore = result.winner === "O" ? score.computer + 1 : score.computer;
+          if (newPlayerScore >= 2 || newComputerScore >= 2) {
+            setGameOver(true);
+          } else {
+            startNextRound();
+          }
+        }, 2000);
+      } else {
+        setShowBidding(true);
+        setCurrentBidder(null);
+      }
+    }, thinkTime);
+  }, [computerMove, checkWinner, score, difficulty]);
 
   const handleBidSubmit = useCallback((playerBid: number) => {
-    const computerBid = Math.min(
-      Math.floor(Math.random() * Math.min(30, computerCoins)) + 1,
-      computerCoins
-    );
+    const computerBid = getComputerBid();
     
     setPlayerCoins(prev => prev - playerBid);
     setComputerCoins(prev => prev - computerBid);
@@ -114,11 +248,9 @@ export default function GameBoard({ onBack }: GameBoardProps) {
     setTimeLeft(TURN_TIME);
     
     if (bidWinner === "O") {
-      setTimeout(() => {
-        makeMove(computerMove(board));
-      }, 1000);
+      executeComputerMove(board);
     }
-  }, [computerCoins, board, computerMove]);
+  }, [getComputerBid, board, executeComputerMove]);
 
   const makeMove = useCallback((cellIndex: number) => {
     if (board[cellIndex] !== null || !currentBidder) return;
@@ -278,11 +410,23 @@ export default function GameBoard({ onBack }: GameBoardProps) {
                 <span className="text-game-o font-bold">O</span>
               </div>
               <span className="font-medium text-sm">Computer</span>
+              <span className={`text-xs px-2 py-0.5 rounded-full ${
+                difficulty === "easy" ? "bg-green-500/20 text-green-600" :
+                difficulty === "medium" ? "bg-amber-500/20 text-amber-600" :
+                "bg-red-500/20 text-red-600"
+              }`}>
+                {difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}
+              </span>
             </div>
             <div className="coin-badge">
               <Coins className="w-4 h-4" />
               ${computerCoins}
             </div>
+            {isComputerThinking && (
+              <div className="text-xs text-muted-foreground mt-2 animate-pulse">
+                Thinking...
+              </div>
+            )}
           </div>
         </div>
 

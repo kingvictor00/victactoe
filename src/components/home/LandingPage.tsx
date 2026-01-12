@@ -1,13 +1,17 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Users, Gamepad2, Trophy, Zap, Hash, ArrowRight } from "lucide-react";
+import { Users, Gamepad2, Trophy, Zap, Hash, ArrowRight, Brain, Sparkles, Flame } from "lucide-react";
+import FloatingBackground from "@/components/ui/FloatingBackground";
+
+export type Difficulty = "easy" | "medium" | "hard";
 
 interface LandingPageProps {
-  onPlayComputer: () => void;
+  onPlayComputer: (difficulty: Difficulty) => void;
 }
 
 export default function LandingPage({ onPlayComputer }: LandingPageProps) {
   const [joinCode, setJoinCode] = useState(["", "", "", "", "", ""]);
+  const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>("medium");
 
   const handleCodeChange = (index: number, value: string) => {
     if (value.length > 1) return;
@@ -29,8 +33,15 @@ export default function LandingPage({ onPlayComputer }: LandingPageProps) {
     }
   };
 
+  const difficulties: { key: Difficulty; label: string; icon: React.ReactNode; color: string }[] = [
+    { key: "easy", label: "Easy", icon: <Sparkles className="w-4 h-4" />, color: "bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30" },
+    { key: "medium", label: "Medium", icon: <Brain className="w-4 h-4" />, color: "bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30" },
+    { key: "hard", label: "Hard", icon: <Flame className="w-4 h-4" />, color: "bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/30" },
+  ];
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background relative">
+      <FloatingBackground />
       <div className="container max-w-lg mx-auto px-4 py-8">
         {/* Header */}
         <motion.div 
@@ -141,23 +152,43 @@ export default function LandingPage({ onPlayComputer }: LandingPageProps) {
           transition={{ delay: 0.4 }}
           className="game-card"
         >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-accent/20 flex items-center justify-center">
-                <Gamepad2 className="w-6 h-6 text-accent-foreground" />
-              </div>
-              <div>
-                <h2 className="font-bold">Play vs Computer</h2>
-                <p className="text-sm text-muted-foreground">Practice your skills</p>
-              </div>
+          <div className="flex items-start gap-4 mb-4">
+            <div className="w-12 h-12 rounded-xl bg-accent/20 flex items-center justify-center shrink-0">
+              <Gamepad2 className="w-6 h-6 text-accent-foreground" />
             </div>
-            <button 
-              onClick={onPlayComputer}
-              className="p-3 rounded-xl bg-muted hover:bg-muted/80 transition-colors"
-            >
-              <ArrowRight className="w-5 h-5" />
-            </button>
+            <div>
+              <h2 className="text-lg font-bold mb-1">Play vs Computer</h2>
+              <p className="text-sm text-muted-foreground">
+                Practice your skills against AI
+              </p>
+            </div>
           </div>
+
+          {/* Difficulty Selection */}
+          <div className="flex gap-2 mb-4">
+            {difficulties.map((diff) => (
+              <button
+                key={diff.key}
+                onClick={() => setSelectedDifficulty(diff.key)}
+                className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border-2 transition-all font-medium text-sm ${
+                  selectedDifficulty === diff.key
+                    ? `${diff.color} border-current`
+                    : "border-transparent bg-muted text-muted-foreground hover:bg-muted/80"
+                }`}
+              >
+                {diff.icon}
+                {diff.label}
+              </button>
+            ))}
+          </div>
+          
+          <button 
+            onClick={() => onPlayComputer(selectedDifficulty)}
+            className="btn-game-primary w-full flex items-center justify-center gap-2"
+          >
+            <Gamepad2 className="w-5 h-5" />
+            Start Game
+          </button>
         </motion.div>
 
         {/* Rules Summary */}

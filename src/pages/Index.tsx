@@ -1,12 +1,18 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import LandingPage from "@/components/home/LandingPage";
+import LandingPage, { type Difficulty } from "@/components/home/LandingPage";
 import GameBoard from "@/components/game/GameBoard";
 
 type GameMode = "landing" | "computer" | "tournament";
 
 const Index = () => {
   const [gameMode, setGameMode] = useState<GameMode>("landing");
+  const [difficulty, setDifficulty] = useState<Difficulty>("medium");
+
+  const handlePlayComputer = (selectedDifficulty: Difficulty) => {
+    setDifficulty(selectedDifficulty);
+    setGameMode("computer");
+  };
 
   return (
     <AnimatePresence mode="wait">
@@ -18,7 +24,7 @@ const Index = () => {
           exit={{ opacity: 0, x: -20 }}
           transition={{ duration: 0.3 }}
         >
-          <LandingPage onPlayComputer={() => setGameMode("computer")} />
+          <LandingPage onPlayComputer={handlePlayComputer} />
         </motion.div>
       )}
       
@@ -30,7 +36,7 @@ const Index = () => {
           exit={{ opacity: 0, x: 20 }}
           transition={{ duration: 0.3 }}
         >
-          <GameBoard onBack={() => setGameMode("landing")} />
+          <GameBoard onBack={() => setGameMode("landing")} difficulty={difficulty} />
         </motion.div>
       )}
     </AnimatePresence>
