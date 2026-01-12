@@ -1,7 +1,22 @@
 import { useState } from "react";
-import { motion } from "framer-motion";
-import { Users, Gamepad2, Trophy, Zap, Hash, ArrowRight, Brain, Sparkles, Flame } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Users, Gamepad2, Trophy, Zap, Hash, ArrowRight, Brain, Sparkles, Flame, Lightbulb, Menu, X, MessageSquare, GitBranch } from "lucide-react";
 import FloatingBackground from "@/components/ui/FloatingBackground";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
+import tournamentBracket from "@/assets/tournament-bracket.png";
 
 export type Difficulty = "easy" | "medium" | "hard";
 
@@ -12,6 +27,8 @@ interface LandingPageProps {
 export default function LandingPage({ onPlayComputer }: LandingPageProps) {
   const [joinCode, setJoinCode] = useState(["", "", "", "", "", ""]);
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>("medium");
+  const [showHowItWorks, setShowHowItWorks] = useState(false);
+  const [showSeedingRules, setShowSeedingRules] = useState(false);
 
   const handleCodeChange = (index: number, value: string) => {
     if (value.length > 1) return;
@@ -42,7 +59,185 @@ export default function LandingPage({ onPlayComputer }: LandingPageProps) {
   return (
     <div className="min-h-screen bg-background relative">
       <FloatingBackground />
-      <div className="container max-w-lg mx-auto px-4 py-8">
+      
+      {/* Top Navigation Bar */}
+      <div className="fixed top-0 left-0 right-0 z-50 px-4 py-3">
+        <div className="container max-w-lg mx-auto flex items-center justify-between">
+          {/* How It Works - Left */}
+          <motion.button
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            onClick={() => setShowHowItWorks(true)}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-card/80 backdrop-blur-sm border border-border hover:bg-muted transition-colors"
+          >
+            <Lightbulb className="w-5 h-5 text-amber-500" />
+            <span className="text-sm font-medium">How it Works</span>
+          </motion.button>
+
+          {/* Menu Dropdown - Right */}
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+          >
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center gap-2 px-3 py-2 rounded-xl bg-card/80 backdrop-blur-sm border border-border hover:bg-muted transition-colors">
+                  <Menu className="w-5 h-5" />
+                  <span className="text-sm font-medium">Menu</span>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48 bg-card border-border">
+                <DropdownMenuItem onClick={() => setShowSeedingRules(true)} className="cursor-pointer">
+                  <GitBranch className="w-4 h-4 mr-2" />
+                  Seeding Rules
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="cursor-pointer">
+                  <MessageSquare className="w-4 h-4 mr-2" />
+                  Feedback
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </motion.div>
+        </div>
+      </div>
+
+      {/* How It Works Sheet */}
+      <Sheet open={showHowItWorks} onOpenChange={setShowHowItWorks}>
+        <SheetContent side="left" className="w-full sm:max-w-md overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <Lightbulb className="w-6 h-6 text-amber-500" />
+              How TicTacToe Works
+            </SheetTitle>
+            <SheetDescription>
+              Learn the unique bidding mechanics of our game
+            </SheetDescription>
+          </SheetHeader>
+          
+          <div className="mt-6 space-y-6">
+            <div className="space-y-3">
+              <h3 className="font-semibold text-lg flex items-center gap-2">
+                💰 Starting Balance
+              </h3>
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                Each player starts with <span className="font-bold text-foreground">$100</span>. This is your ammunition for the entire game!
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <h3 className="font-semibold text-lg flex items-center gap-2">
+                🎯 Bidding System
+              </h3>
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                Before each move, both players place a <span className="font-bold text-foreground">secret bid</span>. The higher bidder wins the right to place their mark. <span className="text-destructive font-medium">Both players lose their bid amount</span>, win or lose!
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <h3 className="font-semibold text-lg flex items-center gap-2">
+                ⏱️ Time Limit
+              </h3>
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                You have <span className="font-bold text-foreground">20 seconds</span> to think before playing. If time runs out, the system auto-plays for you.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <h3 className="font-semibold text-lg flex items-center gap-2">
+                🏆 Winning Conditions
+              </h3>
+              <ul className="text-muted-foreground text-sm space-y-2">
+                <li className="flex items-start gap-2">
+                  <span className="font-bold text-foreground">Standard Win:</span>
+                  <span>Get three marks in a row (horizontal, vertical, or diagonal)</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="font-bold text-foreground">Economic Win:</span>
+                  <span>Have more money when the board fills up</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="font-bold text-foreground">Bankruptcy:</span>
+                  <span>Your opponent runs out of money</span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="space-y-3">
+              <h3 className="font-semibold text-lg flex items-center gap-2">
+                🎮 Best of 3
+              </h3>
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                Matches are played in a <span className="font-bold text-foreground">best of 3 format</span>. First player to win 2 rounds takes the match!
+              </p>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Seeding Rules Sheet */}
+      <Sheet open={showSeedingRules} onOpenChange={setShowSeedingRules}>
+        <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <GitBranch className="w-6 h-6 text-primary" />
+              Seeding Rules
+            </SheetTitle>
+            <SheetDescription>
+              How players are seeded in tournaments
+            </SheetDescription>
+          </SheetHeader>
+          
+          <div className="mt-6 space-y-6">
+            <div className="space-y-3">
+              <h3 className="font-semibold text-lg">🎲 Random Seeding</h3>
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                When a tournament starts, all players are <span className="font-bold text-foreground">randomly shuffled</span> and assigned to positions in the bracket. This ensures fair matchups where no one has an inherent advantage.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <h3 className="font-semibold text-lg">🏟️ Tournament Structure</h3>
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                The tournament uses a <span className="font-bold text-foreground">single-elimination bracket</span> with up to 16 players divided into two wings (Wing A and Wing B). Players progress through rounds until the final showdown.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <h3 className="font-semibold text-lg">📊 Bracket Structure</h3>
+              <ul className="text-muted-foreground text-sm space-y-2">
+                <li>• <span className="font-bold text-foreground">Round 1:</span> 8 matches (16 players)</li>
+                <li>• <span className="font-bold text-foreground">Quarterfinals:</span> 4 matches (8 players)</li>
+                <li>• <span className="font-bold text-foreground">Semifinals:</span> 2 matches (4 players)</li>
+                <li>• <span className="font-bold text-foreground">Wing Finals:</span> 1 match per wing</li>
+                <li>• <span className="font-bold text-foreground">Grand Final:</span> Wing A Champion vs Wing B Champion</li>
+              </ul>
+            </div>
+
+            <div className="space-y-3">
+              <h3 className="font-semibold text-lg">🖼️ Tournament Bracket</h3>
+              <div className="rounded-xl overflow-hidden border border-border bg-muted/30">
+                <img 
+                  src={tournamentBracket} 
+                  alt="Tournament Bracket showing Wing A and Wing B structure" 
+                  className="w-full h-auto"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground text-center">
+                Wing A & Wing B bracket visualization
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <h3 className="font-semibold text-lg">✅ Ready System</h3>
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                Once paired, both players must click <span className="font-bold text-foreground">"Ready"</span> to start their match. This ensures both players are present and prepared before gameplay begins.
+              </p>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+      <div className="container max-w-lg mx-auto px-4 pt-20 pb-8">
         {/* Header */}
         <motion.div 
           initial={{ opacity: 0, y: -20 }}
@@ -191,29 +386,6 @@ export default function LandingPage({ onPlayComputer }: LandingPageProps) {
           </button>
         </motion.div>
 
-        {/* Rules Summary */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          className="mt-8 text-center"
-        >
-          <h3 className="font-semibold mb-3">How It Works</h3>
-          <div className="grid grid-cols-3 gap-3 text-center">
-            <div className="game-card p-4">
-              <div className="text-2xl mb-2">💰</div>
-              <div className="text-xs text-muted-foreground">Start with $100</div>
-            </div>
-            <div className="game-card p-4">
-              <div className="text-2xl mb-2">🎯</div>
-              <div className="text-xs text-muted-foreground">Bid to play</div>
-            </div>
-            <div className="game-card p-4">
-              <div className="text-2xl mb-2">🏆</div>
-              <div className="text-xs text-muted-foreground">Best of 3 wins</div>
-            </div>
-          </div>
-        </motion.div>
       </div>
     </div>
   );
