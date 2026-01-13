@@ -195,7 +195,8 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
 
   const executeComputerMove = useCallback((currentBoard: Board) => {
     setIsComputerThinking(true);
-    const thinkTime = difficulty === "easy" ? 500 : difficulty === "medium" ? 800 : 1200;
+    // 3 second delay for thinking as requested
+    const thinkTime = 3000;
     
     setTimeout(() => {
       const moveIndex = computerMove(currentBoard);
@@ -229,7 +230,7 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
         setCurrentBidder(null);
       }
     }, thinkTime);
-  }, [computerMove, checkWinner, score, difficulty]);
+  }, [computerMove, checkWinner, score]);
 
   const handleBidSubmit = useCallback((bidAmount: number) => {
     const computerBid = getComputerBid();
@@ -454,8 +455,13 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
               ${computerCoins}
             </div>
             {isComputerThinking && (
-              <div className="text-xs text-muted-foreground mt-2 animate-pulse">
-                Thinking...
+              <div className="flex items-center gap-2 mt-2">
+                <div className="flex gap-1">
+                  <div className="w-2 h-2 rounded-full bg-secondary animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <div className="w-2 h-2 rounded-full bg-secondary animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <div className="w-2 h-2 rounded-full bg-secondary animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+                <span className="text-xs text-muted-foreground">Thinking...</span>
               </div>
             )}
           </div>
