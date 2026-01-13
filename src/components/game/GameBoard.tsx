@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Coins, Clock, Trophy, RotateCcw, Home } from "lucide-react";
-import BiddingModal from "./BiddingModal";
+import { Coins, Clock, Trophy, RotateCcw, Home, ArrowRight } from "lucide-react";
 import GameOverModal from "./GameOverModal";
+import { Slider } from "@/components/ui/slider";
 
 type Player = "X" | "O";
 type CellValue = Player | null;
@@ -22,6 +22,7 @@ const WINNING_COMBINATIONS = [
 
 const INITIAL_COINS = 100;
 const TURN_TIME = 20;
+const BID_TIME = 20;
 const MAX_AUTO_PLAYS = 5;
 
 export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
@@ -29,16 +30,18 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
   const [playerCoins, setPlayerCoins] = useState(INITIAL_COINS);
   const [computerCoins, setComputerCoins] = useState(INITIAL_COINS);
   const [currentBidder, setCurrentBidder] = useState<Player | null>(null);
-  const [showBidding, setShowBidding] = useState(true);
+  const [isBiddingPhase, setIsBiddingPhase] = useState(true);
   const [winner, setWinner] = useState<Player | "tie" | null>(null);
   const [winningLine, setWinningLine] = useState<number[] | null>(null);
   const [timeLeft, setTimeLeft] = useState(TURN_TIME);
+  const [bidTimeLeft, setBidTimeLeft] = useState(BID_TIME);
   const [autoPlays, setAutoPlays] = useState(0);
   const [lastBidResult, setLastBidResult] = useState<{ playerBid: number; computerBid: number; winner: Player } | null>(null);
   const [score, setScore] = useState({ player: 0, computer: 0 });
   const [round, setRound] = useState(1);
   const [gameOver, setGameOver] = useState(false);
   const [isComputerThinking, setIsComputerThinking] = useState(false);
+  const [playerBid, setPlayerBid] = useState(10);
 
   const checkWinner = useCallback((currentBoard: Board): { winner: Player | "tie" | null; line: number[] | null } => {
     for (const combo of WINNING_COMBINATIONS) {
@@ -221,36 +224,39 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
           }
         }, 2000);
       } else {
-        setShowBidding(true);
+        setIsBiddingPhase(true);
+        setBidTimeLeft(BID_TIME);
         setCurrentBidder(null);
       }
     }, thinkTime);
   }, [computerMove, checkWinner, score, difficulty]);
 
-  const handleBidSubmit = useCallback((playerBid: number) => {
+  const handleBidSubmit = useCallback((bidAmount: number) => {
     const computerBid = getComputerBid();
+    const actualBid = Math.min(bidAmount, playerCoins);
     
-    setPlayerCoins(prev => prev - playerBid);
+    setPlayerCoins(prev => prev - actualBid);
     setComputerCoins(prev => prev - computerBid);
     
     let bidWinner: Player;
-    if (playerBid > computerBid) {
+    if (actualBid > computerBid) {
       bidWinner = "X";
-    } else if (computerBid > playerBid) {
+    } else if (computerBid > actualBid) {
       bidWinner = "O";
     } else {
       bidWinner = Math.random() > 0.5 ? "X" : "O";
     }
     
-    setLastBidResult({ playerBid, computerBid, winner: bidWinner });
+    setLastBidResult({ playerBid: actualBid, computerBid, winner: bidWinner });
     setCurrentBidder(bidWinner);
-    setShowBidding(false);
+    setIsBiddingPhase(false);
     setTimeLeft(TURN_TIME);
+    setPlayerBid(10);
     
     if (bidWinner === "O") {
       executeComputerMove(board);
     }
-  }, [getComputerBid, board, executeComputerMove]);
+  }, [getComputerBid, board, executeComputerMove, playerCoins]);
 
   const makeMove = useCallback((cellIndex: number) => {
     if (board[cellIndex] !== null || !currentBidder) return;
@@ -284,7 +290,8 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
         }
       }, 2000);
     } else {
-      setShowBidding(true);
+      setIsBiddingPhase(true);
+      setBidTimeLeft(BID_TIME);
       setCurrentBidder(null);
     }
   }, [board, currentBidder, checkWinner, score]);
@@ -296,11 +303,13 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
     setWinner(null);
     setWinningLine(null);
     setCurrentBidder(null);
-    setShowBidding(true);
+    setIsBiddingPhase(true);
     setTimeLeft(TURN_TIME);
+    setBidTimeLeft(BID_TIME);
     setAutoPlays(0);
     setLastBidResult(null);
     setRound(prev => prev + 1);
+    setPlayerBid(10);
   };
 
   const resetGame = () => {
@@ -310,18 +319,38 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
     setWinner(null);
     setWinningLine(null);
     setCurrentBidder(null);
-    setShowBidding(true);
+    setIsBiddingPhase(true);
     setTimeLeft(TURN_TIME);
+    setBidTimeLeft(BID_TIME);
     setAutoPlays(0);
     setLastBidResult(null);
     setScore({ player: 0, computer: 0 });
     setRound(1);
     setGameOver(false);
+    setPlayerBid(10);
   };
 
-  // Timer effect
+  // Bid timer effect
   useEffect(() => {
-    if (!currentBidder || winner || currentBidder === "O") return;
+    if (!isBiddingPhase || winner) return;
+    
+    const timer = setInterval(() => {
+      setBidTimeLeft(prev => {
+        if (prev <= 1) {
+          // Auto-submit minimum bid when time runs out
+          handleBidSubmit(1);
+          return BID_TIME;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    
+    return () => clearInterval(timer);
+  }, [isBiddingPhase, winner, handleBidSubmit]);
+
+  // Turn timer effect
+  useEffect(() => {
+    if (!currentBidder || winner || currentBidder === "O" || isBiddingPhase) return;
     
     const timer = setInterval(() => {
       setTimeLeft(prev => {
@@ -347,7 +376,7 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
     }, 1000);
     
     return () => clearInterval(timer);
-  }, [currentBidder, winner, board, makeMove]);
+  }, [currentBidder, winner, board, makeMove, isBiddingPhase]);
 
   const getCellClass = (index: number) => {
     const baseClass = "game-cell";
@@ -356,6 +385,8 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
     
     return `${baseClass} ${value === "X" ? "x" : value === "O" ? "o" : ""} ${isWinning ? "animate-winner-glow" : ""}`;
   };
+
+  const quickBids = [5, 10, 25, 50];
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-6">
@@ -430,9 +461,80 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
           </div>
         </div>
 
+        {/* Inline Bidding Section */}
+        <AnimatePresence mode="wait">
+          {isBiddingPhase && !winner && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="game-card mb-4"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent to-amber-500 flex items-center justify-center">
+                    <Coins className="w-5 h-5 text-foreground" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm">Place Your Bid</h3>
+                    <p className="text-xs text-muted-foreground">Higher bid wins the turn</p>
+                  </div>
+                </div>
+                <div className={`timer-ring ${bidTimeLeft <= 5 ? "text-game-warning" : "text-foreground"}`}>
+                  <Clock className="w-3 h-3 absolute top-0 right-0 opacity-50" />
+                  {bidTimeLeft}s
+                </div>
+              </div>
+
+              {/* Quick Bid Buttons */}
+              <div className="flex gap-2 justify-center mb-3">
+                {quickBids.map((amount) => (
+                  <button
+                    key={amount}
+                    onClick={() => setPlayerBid(Math.min(amount, playerCoins))}
+                    disabled={amount > playerCoins}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${
+                      playerBid === amount 
+                        ? "bg-primary text-primary-foreground" 
+                        : "bg-muted hover:bg-muted/80"
+                    } ${amount > playerCoins ? "opacity-50 cursor-not-allowed" : ""}`}
+                  >
+                    ${amount}
+                  </button>
+                ))}
+              </div>
+
+              {/* Bid Slider */}
+              <div className="mb-3">
+                <div className="flex justify-between text-sm mb-2">
+                  <span className="text-muted-foreground">$1</span>
+                  <span className="font-bold text-lg">${playerBid}</span>
+                  <span className="text-muted-foreground">${playerCoins}</span>
+                </div>
+                <Slider
+                  value={[playerBid]}
+                  onValueChange={(value) => setPlayerBid(value[0])}
+                  min={1}
+                  max={playerCoins}
+                  step={1}
+                  className="w-full"
+                />
+              </div>
+
+              <button
+                onClick={() => handleBidSubmit(playerBid)}
+                className="btn-game-primary w-full flex items-center justify-center gap-2 py-3"
+              >
+                Confirm Bid
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Last Bid Result */}
         <AnimatePresence>
-          {lastBidResult && !showBidding && (
+          {lastBidResult && !isBiddingPhase && (
             <motion.div 
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -451,7 +553,7 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
         </AnimatePresence>
 
         {/* Timer */}
-        {currentBidder === "X" && !winner && (
+        {currentBidder === "X" && !winner && !isBiddingPhase && (
           <div className="flex justify-center mb-4">
             <div className={`timer-ring ${timeLeft <= 5 ? "text-game-warning" : "text-foreground"}`}>
               <Clock className="w-4 h-4 absolute top-0 right-0 opacity-50" />
@@ -468,7 +570,7 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
                 key={index}
                 className={getCellClass(index)}
                 onClick={() => currentBidder === "X" && makeMove(index)}
-                disabled={cell !== null || currentBidder !== "X" || !!winner}
+                disabled={cell !== null || currentBidder !== "X" || !!winner || isBiddingPhase}
                 whileTap={{ scale: 0.95 }}
               >
                 <AnimatePresence mode="wait">
@@ -513,13 +615,6 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
           </div>
         )}
       </div>
-
-      {/* Bidding Modal */}
-      <BiddingModal 
-        isOpen={showBidding && !winner}
-        onSubmit={handleBidSubmit}
-        maxBid={playerCoins}
-      />
 
       {/* Game Over Modal */}
       <GameOverModal
