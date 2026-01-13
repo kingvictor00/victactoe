@@ -136,10 +136,10 @@ export default function LandingPage({ onPlayComputer }: LandingPageProps) {
 
             <div className="space-y-3">
               <h3 className="font-semibold text-lg flex items-center gap-2">
-                ⏱️ Time Limit
+                ⏱️ Time Limits
               </h3>
               <p className="text-muted-foreground text-sm leading-relaxed">
-                You have <span className="font-bold text-foreground">20 seconds</span> to think before playing. If time runs out, the system auto-plays for you.
+                You have <span className="font-bold text-foreground">20 seconds</span> to place your bid each round, and another <span className="font-bold text-foreground">20 seconds</span> to make your move if you win the bid. If time runs out, the system handles it for you.
               </p>
             </div>
 
@@ -190,6 +190,13 @@ export default function LandingPage({ onPlayComputer }: LandingPageProps) {
           
           <div className="mt-6 space-y-6">
             <div className="space-y-3">
+              <h3 className="font-semibold text-lg">👥 Unlimited Players</h3>
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                Any number of players can join a tournament! The bracket automatically adjusts to accommodate all participants. For example, a tournament with <span className="font-bold text-foreground">16 players</span> creates 8 first-round matches.
+              </p>
+            </div>
+
+            <div className="space-y-3">
               <h3 className="font-semibold text-lg">🎲 Random Seeding</h3>
               <p className="text-muted-foreground text-sm leading-relaxed">
                 When a tournament starts, all players are <span className="font-bold text-foreground">randomly shuffled</span> and assigned to positions in the bracket. This ensures fair matchups where no one has an inherent advantage.
@@ -199,12 +206,12 @@ export default function LandingPage({ onPlayComputer }: LandingPageProps) {
             <div className="space-y-3">
               <h3 className="font-semibold text-lg">🏟️ Tournament Structure</h3>
               <p className="text-muted-foreground text-sm leading-relaxed">
-                The tournament uses a <span className="font-bold text-foreground">single-elimination bracket</span> with up to 16 players divided into two wings (Wing A and Wing B). Players progress through rounds until the final showdown.
+                The tournament uses a <span className="font-bold text-foreground">single-elimination bracket</span> divided into two wings (Wing A and Wing B). Players progress through rounds until the final showdown.
               </p>
             </div>
 
             <div className="space-y-3">
-              <h3 className="font-semibold text-lg">📊 Bracket Structure</h3>
+              <h3 className="font-semibold text-lg">📊 Example: 16-Player Bracket</h3>
               <ul className="text-muted-foreground text-sm space-y-2">
                 <li>• <span className="font-bold text-foreground">Round 1:</span> 8 matches (16 players)</li>
                 <li>• <span className="font-bold text-foreground">Quarterfinals:</span> 4 matches (8 players)</li>
@@ -291,7 +298,7 @@ export default function LandingPage({ onPlayComputer }: LandingPageProps) {
             Create & Invite Friends
           </button>
           <p className="text-xs text-center text-muted-foreground mt-3">
-            🎮 Free to play • Up to 16 players
+            🎮 Free to play • Unlimited players
           </p>
         </motion.div>
 
