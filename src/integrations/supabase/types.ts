@@ -14,7 +14,86 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      tournament_players: {
+        Row: {
+          id: string
+          is_eliminated: boolean
+          is_host: boolean
+          is_ready: boolean
+          joined_at: string
+          player_name: string
+          seed_position: number | null
+          tournament_id: string
+        }
+        Insert: {
+          id?: string
+          is_eliminated?: boolean
+          is_host?: boolean
+          is_ready?: boolean
+          joined_at?: string
+          player_name: string
+          seed_position?: number | null
+          tournament_id: string
+        }
+        Update: {
+          id?: string
+          is_eliminated?: boolean
+          is_host?: boolean
+          is_ready?: boolean
+          joined_at?: string
+          player_name?: string
+          seed_position?: number | null
+          tournament_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tournament_players_tournament_id_fkey"
+            columns: ["tournament_id"]
+            isOneToOne: false
+            referencedRelation: "tournaments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tournaments: {
+        Row: {
+          code: string
+          completed_at: string | null
+          created_at: string
+          host_id: string | null
+          id: string
+          is_unlimited: boolean
+          max_players: number
+          name: string
+          started_at: string | null
+          status: string
+        }
+        Insert: {
+          code: string
+          completed_at?: string | null
+          created_at?: string
+          host_id?: string | null
+          id?: string
+          is_unlimited?: boolean
+          max_players?: number
+          name: string
+          started_at?: string | null
+          status?: string
+        }
+        Update: {
+          code?: string
+          completed_at?: string | null
+          created_at?: string
+          host_id?: string | null
+          id?: string
+          is_unlimited?: boolean
+          max_players?: number
+          name?: string
+          started_at?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
