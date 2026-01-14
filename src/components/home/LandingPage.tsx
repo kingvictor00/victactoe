@@ -23,9 +23,10 @@ export type Difficulty = "easy" | "medium" | "hard";
 interface LandingPageProps {
   onPlayComputer: (difficulty: Difficulty) => void;
   onCreateTournament: () => void;
+  onJoinTournament: () => void;
 }
 
-export default function LandingPage({ onPlayComputer, onCreateTournament }: LandingPageProps) {
+export default function LandingPage({ onPlayComputer, onCreateTournament, onJoinTournament }: LandingPageProps) {
   const [joinCode, setJoinCode] = useState(["", "", "", "", "", ""]);
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>("medium");
   const [showHowItWorks, setShowHowItWorks] = useState(false);
@@ -343,8 +344,8 @@ export default function LandingPage({ onPlayComputer, onCreateTournament }: Land
           </div>
           
           <button 
+            onClick={onJoinTournament}
             className="btn-game-secondary w-full flex items-center justify-center gap-2"
-            disabled={joinCode.some(d => !d)}
           >
             Join Tournament
             <ArrowRight className="w-5 h-5" />

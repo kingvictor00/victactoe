@@ -7,10 +7,11 @@ import FloatingBackground from "@/components/ui/FloatingBackground";
 
 interface CreateTournamentProps {
   onBack: () => void;
-  onTournamentCreated: (code: string, tournamentId: string) => void;
+  onTournamentCreated: (code: string, tournamentId: string, playerId: string) => void;
 }
 
-const PLAYER_OPTIONS = [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36];
+// Powers of 2 from 2 to 32
+const PLAYER_OPTIONS = [2, 4, 8, 16, 32];
 
 function generateCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -23,20 +24,26 @@ function generateCode(): string {
 
 export default function CreateTournament({ onBack, onTournamentCreated }: CreateTournamentProps) {
   const [roomName, setRoomName] = useState("");
+  const [hostName, setHostName] = useState("");
   const [maxPlayers, setMaxPlayers] = useState<number | "unlimited">(16);
   const [isCreating, setIsCreating] = useState(false);
-  const [createdCode, setCreatedCode] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [step, setStep] = useState<'setup' | 'name'>('setup');
+
+  const handleContinueToName = () => {
+    if (!roomName.trim()) return;
+    setStep('name');
+  };
 
   const handleCreate = async () => {
-    if (!roomName.trim()) return;
+    if (!roomName.trim() || !hostName.trim()) return;
     
     setIsCreating(true);
     
     try {
       const code = generateCode();
       
-      const { data, error } = await supabase
+      // Create tournament
+      const { data: tournament, error: tournamentError } = await supabase
         .from('tournaments')
         .insert({
           name: roomName.trim(),
@@ -48,10 +55,33 @@ export default function CreateTournament({ onBack, onTournamentCreated }: Create
         .select()
         .single();
 
-      if (error) throw error;
+      if (tournamentError) throw tournamentError;
 
-      setCreatedCode(code);
-      onTournamentCreated(code, data.id);
+      // Add host as first player
+      const { data: player, error: playerError } = await supabase
+        .from('tournament_players')
+        .insert({
+          tournament_id: tournament.id,
+          player_name: hostName.trim(),
+          is_host: true,
+        })
+        .select()
+        .single();
+
+      if (playerError) throw playerError;
+
+      // Save session to localStorage for persistence
+      const sessionData = {
+        tournamentId: tournament.id,
+        tournamentCode: code,
+        isHost: true,
+        currentPlayerId: player.id,
+        playerName: hostName.trim(),
+        timestamp: Date.now(),
+      };
+      localStorage.setItem('tournament_session', JSON.stringify(sessionData));
+
+      onTournamentCreated(code, tournament.id, player.id);
     } catch (error) {
       console.error('Error creating tournament:', error);
     } finally {
@@ -59,78 +89,59 @@ export default function CreateTournament({ onBack, onTournamentCreated }: Create
     }
   };
 
-  const handleCopy = () => {
-    if (createdCode) {
-      navigator.clipboard.writeText(createdCode);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
-
-  if (createdCode) {
+  if (step === 'name') {
     return (
       <div className="min-h-screen bg-background relative">
         <FloatingBackground />
         <div className="container max-w-lg mx-auto px-4 py-8">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="game-card text-center"
-          >
-            <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center mb-6">
-              <Trophy className="w-8 h-8 text-primary-foreground" />
-            </div>
-            
-            <h2 className="text-2xl font-bold mb-2">Tournament Created!</h2>
-            <p className="text-muted-foreground mb-6">Share this code with your friends</p>
-            
-            <div className="relative mb-6">
-              <div className="flex justify-center gap-2 mb-4">
-                {createdCode.split('').map((char, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    className="w-12 h-14 rounded-xl bg-muted flex items-center justify-center text-2xl font-bold"
-                  >
-                    {char}
-                  </motion.div>
-                ))}
-              </div>
-              
-              <button
-                onClick={handleCopy}
-                className="btn-game-secondary flex items-center justify-center gap-2 mx-auto"
-              >
-                {copied ? (
-                  <>
-                    <Check className="w-5 h-5" />
-                    Copied!
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-5 h-5" />
-                    Copy Code
-                  </>
-                )}
-              </button>
-            </div>
-            
-            <div className="text-sm text-muted-foreground mb-6">
-              <p><span className="font-medium text-foreground">{roomName}</span></p>
-              <p className="mt-1">
-                {maxPlayers === "unlimited" ? "Unlimited players" : `Up to ${maxPlayers} players`}
-              </p>
-            </div>
-            
-            <button
-              onClick={onBack}
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+          {/* Header */}
+          <div className="flex items-center gap-4 mb-8">
+            <button 
+              onClick={() => setStep('setup')}
+              className="p-2 rounded-xl bg-card hover:bg-muted transition-colors"
             >
-              ← Back to Home
+              <ArrowLeft className="w-5 h-5" />
             </button>
+            <h1 className="text-xl font-bold">Your Display Name</h1>
+          </div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="game-card mb-6"
+          >
+            <label className="block text-sm font-medium mb-2">Enter Your Name</label>
+            <Input
+              type="text"
+              value={hostName}
+              onChange={(e) => setHostName(e.target.value)}
+              placeholder="Your display name..."
+              className="bg-muted border-0"
+              maxLength={20}
+              autoFocus
+            />
+            <p className="text-xs text-muted-foreground mt-2">
+              This is how other players will see you in the tournament
+            </p>
           </motion.div>
+
+          <motion.button
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            onClick={handleCreate}
+            disabled={!hostName.trim() || isCreating}
+            className="btn-game-primary w-full flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isCreating ? (
+              <span className="animate-pulse">Creating...</span>
+            ) : (
+              <>
+                <Trophy className="w-5 h-5" />
+                Create Tournament
+              </>
+            )}
+          </motion.button>
         </div>
       </div>
     );
@@ -212,27 +223,21 @@ export default function CreateTournament({ onBack, onTournamentCreated }: Create
           <p className="text-xs text-muted-foreground mt-3 text-center">
             {maxPlayers === "unlimited" 
               ? "Any number of players can join until you start the tournament"
-              : `Tournament will start when ${maxPlayers} players join`}
+              : `Tournament will accommodate ${maxPlayers} players in bracket format`}
           </p>
         </motion.div>
 
-        {/* Create Button */}
+        {/* Continue Button */}
         <motion.button
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          onClick={handleCreate}
-          disabled={!roomName.trim() || isCreating}
+          onClick={handleContinueToName}
+          disabled={!roomName.trim()}
           className="btn-game-primary w-full flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {isCreating ? (
-            <span className="animate-pulse">Creating...</span>
-          ) : (
-            <>
-              <Trophy className="w-5 h-5" />
-              Create Tournament
-            </>
-          )}
+          Continue
+          <ArrowLeft className="w-5 h-5 rotate-180" />
         </motion.button>
       </div>
     </div>
