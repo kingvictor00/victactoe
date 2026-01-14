@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Copy, Check, Users, Trophy, Infinity } from "lucide-react";
+import { ArrowLeft, Trophy, Users, Infinity } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import FloatingBackground from "@/components/ui/FloatingBackground";
+import ConfirmLeaveDialog from "@/components/ui/ConfirmLeaveDialog";
 
 interface CreateTournamentProps {
   onBack: () => void;
@@ -28,6 +29,7 @@ export default function CreateTournament({ onBack, onTournamentCreated }: Create
   const [maxPlayers, setMaxPlayers] = useState<number | "unlimited">(16);
   const [isCreating, setIsCreating] = useState(false);
   const [step, setStep] = useState<'setup' | 'name'>('setup');
+  const [showConfirmLeave, setShowConfirmLeave] = useState(false);
 
   const handleContinueToName = () => {
     if (!roomName.trim()) return;
@@ -89,6 +91,27 @@ export default function CreateTournament({ onBack, onTournamentCreated }: Create
     }
   };
 
+  const handleBackClick = () => {
+    if (roomName.trim() || hostName.trim()) {
+      setShowConfirmLeave(true);
+    } else {
+      if (step === 'name') {
+        setStep('setup');
+      } else {
+        onBack();
+      }
+    }
+  };
+
+  const handleConfirmLeave = () => {
+    setShowConfirmLeave(false);
+    if (step === 'name') {
+      setStep('setup');
+    } else {
+      onBack();
+    }
+  };
+
   if (step === 'name') {
     return (
       <div className="min-h-screen bg-background relative">
@@ -97,7 +120,7 @@ export default function CreateTournament({ onBack, onTournamentCreated }: Create
           {/* Header */}
           <div className="flex items-center gap-4 mb-8">
             <button 
-              onClick={() => setStep('setup')}
+              onClick={handleBackClick}
               className="p-2 rounded-xl bg-card hover:bg-muted transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
@@ -143,6 +166,14 @@ export default function CreateTournament({ onBack, onTournamentCreated }: Create
             )}
           </motion.button>
         </div>
+
+        <ConfirmLeaveDialog
+          open={showConfirmLeave}
+          onOpenChange={setShowConfirmLeave}
+          onConfirm={handleConfirmLeave}
+          title="Leave Setup?"
+          description="Are you sure you want to go back? Your tournament setup will be lost."
+        />
       </div>
     );
   }
@@ -154,7 +185,7 @@ export default function CreateTournament({ onBack, onTournamentCreated }: Create
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
           <button 
-            onClick={onBack}
+            onClick={handleBackClick}
             className="p-2 rounded-xl bg-card hover:bg-muted transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -240,6 +271,14 @@ export default function CreateTournament({ onBack, onTournamentCreated }: Create
           <ArrowLeft className="w-5 h-5 rotate-180" />
         </motion.button>
       </div>
+
+      <ConfirmLeaveDialog
+        open={showConfirmLeave}
+        onOpenChange={setShowConfirmLeave}
+        onConfirm={handleConfirmLeave}
+        title="Leave Setup?"
+        description="Are you sure you want to leave? Your tournament setup will be lost."
+      />
     </div>
   );
 }

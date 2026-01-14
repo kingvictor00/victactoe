@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Copy, Check, Users, Trophy, Crown, User } from "lucide-react";
+import { ArrowLeft, Copy, Check, Users, Trophy, Crown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { Input } from "@/components/ui/input";
 import FloatingBackground from "@/components/ui/FloatingBackground";
+import ConfirmLeaveDialog from "@/components/ui/ConfirmLeaveDialog";
 
 interface Player {
   id: string;
@@ -63,6 +63,7 @@ export default function TournamentLobby({
   const [isUnlimited, setIsUnlimited] = useState(false);
   const [tournamentName, setTournamentName] = useState("");
   const [copied, setCopied] = useState(false);
+  const [showConfirmLeave, setShowConfirmLeave] = useState(false);
 
   // Fetch tournament details and subscribe to player changes
   useEffect(() => {
@@ -136,6 +137,15 @@ export default function TournamentLobby({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleBackClick = () => {
+    setShowConfirmLeave(true);
+  };
+
+  const handleConfirmLeave = () => {
+    setShowConfirmLeave(false);
+    onBack();
+  };
+
   const canStartGame = isHost && players.length >= 2;
 
   return (
@@ -145,7 +155,7 @@ export default function TournamentLobby({
         {/* Header */}
         <div className="flex items-center gap-4 mb-6">
           <button
-            onClick={onBack}
+            onClick={handleBackClick}
             className="p-2 rounded-xl bg-card hover:bg-muted transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -304,6 +314,14 @@ export default function TournamentLobby({
           </motion.div>
         )}
       </div>
+
+      <ConfirmLeaveDialog
+        open={showConfirmLeave}
+        onOpenChange={setShowConfirmLeave}
+        onConfirm={handleConfirmLeave}
+        title="Leave Tournament?"
+        description="Are you sure you want to leave? You will be removed from this tournament lobby."
+      />
     </div>
   );
 }

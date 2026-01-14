@@ -4,6 +4,7 @@ import { ArrowLeft, Users, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import FloatingBackground from "@/components/ui/FloatingBackground";
+import ConfirmLeaveDialog from "@/components/ui/ConfirmLeaveDialog";
 
 interface JoinTournamentProps {
   onBack: () => void;
@@ -16,6 +17,7 @@ export default function JoinTournament({ onBack, onJoined }: JoinTournamentProps
   const [isJoining, setIsJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState<'code' | 'name'>('code');
+  const [showConfirmLeave, setShowConfirmLeave] = useState(false);
   const [tournamentInfo, setTournamentInfo] = useState<{
     id: string;
     name: string;
@@ -128,6 +130,27 @@ export default function JoinTournament({ onBack, onJoined }: JoinTournamentProps
     setError(null);
   };
 
+  const handleBackClick = () => {
+    if (code.trim() || playerName.trim()) {
+      setShowConfirmLeave(true);
+    } else {
+      if (step === 'name') {
+        setStep('code');
+      } else {
+        onBack();
+      }
+    }
+  };
+
+  const handleConfirmLeave = () => {
+    setShowConfirmLeave(false);
+    if (step === 'name') {
+      setStep('code');
+    } else {
+      onBack();
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background relative">
       <FloatingBackground />
@@ -135,7 +158,7 @@ export default function JoinTournament({ onBack, onJoined }: JoinTournamentProps
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
           <button
-            onClick={step === 'name' ? () => setStep('code') : onBack}
+            onClick={handleBackClick}
             className="p-2 rounded-xl bg-card hover:bg-muted transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -268,6 +291,14 @@ export default function JoinTournament({ onBack, onJoined }: JoinTournamentProps
           </>
         )}
       </div>
+
+      <ConfirmLeaveDialog
+        open={showConfirmLeave}
+        onOpenChange={setShowConfirmLeave}
+        onConfirm={handleConfirmLeave}
+        title="Leave?"
+        description="Are you sure you want to go back? Your progress will be lost."
+      />
     </div>
   );
 }

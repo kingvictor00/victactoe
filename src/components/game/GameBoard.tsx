@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Coins, Clock, Trophy, RotateCcw, Home, ArrowRight } from "lucide-react";
+import { Coins, Clock, Trophy, RotateCcw, Home, ArrowRight, Loader2 } from "lucide-react";
 import GameOverModal from "./GameOverModal";
 import { Slider } from "@/components/ui/slider";
+import ConfirmLeaveDialog from "@/components/ui/ConfirmLeaveDialog";
 
 type Player = "X" | "O";
 type CellValue = Player | null;
@@ -24,6 +25,18 @@ const INITIAL_COINS = 100;
 const TURN_TIME = 20;
 const BID_TIME = 20;
 const MAX_AUTO_PLAYS = 5;
+const BID_RESULT_DELAY = 3000; // 3 seconds for bid results
+const COIN_TOSS_DELAY = 7000; // 7 seconds for coin toss
+const BANKRUPTCY_DELAY = 3000; // 3 seconds for bankruptcy notification
+
+type NotificationType = "bid_win" | "bid_lose" | "tie_coin_toss" | "bankruptcy";
+
+interface Notification {
+  type: NotificationType;
+  message: string;
+  subMessage?: string;
+  winner?: Player;
+}
 
 export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
   const [board, setBoard] = useState<Board>(Array(9).fill(null));
@@ -42,6 +55,10 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
   const [gameOver, setGameOver] = useState(false);
   const [isComputerThinking, setIsComputerThinking] = useState(false);
   const [playerBid, setPlayerBid] = useState(10);
+  const [showConfirmLeave, setShowConfirmLeave] = useState(false);
+  const [notification, setNotification] = useState<Notification | null>(null);
+  const [isProcessingBid, setIsProcessingBid] = useState(false);
+  const [coinTossAnimation, setCoinTossAnimation] = useState(false);
 
   const checkWinner = useCallback((currentBoard: Board): { winner: Player | "tie" | null; line: number[] | null } => {
     for (const combo of WINNING_COMBINATIONS) {
@@ -56,10 +73,6 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
       if (computerCoins > playerCoins) return { winner: "O", line: null };
       return { winner: "tie", line: null };
     }
-    // Bankruptcy check - if a player has 0 coins, they lose because they can't bid anymore
-    // Minimum bid is 1, so 0 means you can't participate
-    if (playerCoins <= 0) return { winner: "O", line: null };
-    if (computerCoins <= 0) return { winner: "X", line: null };
     return { winner: null, line: null };
   }, [playerCoins, computerCoins]);
 
@@ -234,6 +247,9 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
   }, [computerMove, checkWinner, score]);
 
   const handleBidSubmit = useCallback((bidAmount: number) => {
+    if (isProcessingBid) return;
+    setIsProcessingBid(true);
+    
     const computerBid = getComputerBid();
     const actualBid = Math.min(bidAmount, playerCoins);
     
@@ -243,58 +259,125 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
     setPlayerCoins(newPlayerCoins);
     setComputerCoins(newComputerCoins);
     
+    const isTie = actualBid === computerBid;
     let bidWinner: Player;
+    
     if (actualBid > computerBid) {
       bidWinner = "X";
     } else if (computerBid > actualBid) {
       bidWinner = "O";
     } else {
+      // Tie - coin toss
       bidWinner = Math.random() > 0.5 ? "X" : "O";
     }
     
     setLastBidResult({ playerBid: actualBid, computerBid, winner: bidWinner });
-    setCurrentBidder(bidWinner);
     setIsBiddingPhase(false);
-    setTimeLeft(TURN_TIME);
     setPlayerBid(10);
     
     // Check for bankruptcy immediately after bidding
-    // If player has 0 coins after this round, they will lose next bidding phase
-    // But we check if they're already at 0 and can't bid anymore
     if (newPlayerCoins <= 0) {
       // Player is bankrupt - they lose
-      setWinner("O");
-      setScore(prev => ({ ...prev, computer: prev.computer + 1 }));
+      setNotification({
+        type: "bankruptcy",
+        message: "💸 You're Bankrupt!",
+        subMessage: "You've run out of money. Computer wins this round.",
+      });
+      
       setTimeout(() => {
-        const newComputerScore = score.computer + 1;
-        if (newComputerScore >= 2) {
-          setGameOver(true);
-        } else {
-          startNextRound();
-        }
-      }, 2000);
+        setNotification(null);
+        setWinner("O");
+        setScore(prev => ({ ...prev, computer: prev.computer + 1 }));
+        setTimeout(() => {
+          const newComputerScore = score.computer + 1;
+          if (newComputerScore >= 2) {
+            setGameOver(true);
+          } else {
+            startNextRound();
+          }
+        }, 2000);
+      }, BANKRUPTCY_DELAY);
+      setIsProcessingBid(false);
       return;
     }
     
     if (newComputerCoins <= 0) {
       // Computer is bankrupt - player wins
-      setWinner("X");
-      setScore(prev => ({ ...prev, player: prev.player + 1 }));
+      setNotification({
+        type: "bankruptcy",
+        message: "🎉 Computer Bankrupt!",
+        subMessage: "The computer has run out of money. You win this round!",
+      });
+      
       setTimeout(() => {
-        const newPlayerScore = score.player + 1;
-        if (newPlayerScore >= 2) {
-          setGameOver(true);
-        } else {
-          startNextRound();
-        }
-      }, 2000);
+        setNotification(null);
+        setWinner("X");
+        setScore(prev => ({ ...prev, player: prev.player + 1 }));
+        setTimeout(() => {
+          const newPlayerScore = score.player + 1;
+          if (newPlayerScore >= 2) {
+            setGameOver(true);
+          } else {
+            startNextRound();
+          }
+        }, 2000);
+      }, BANKRUPTCY_DELAY);
+      setIsProcessingBid(false);
       return;
     }
     
-    if (bidWinner === "O") {
-      executeComputerMove(board);
+    // Handle tie with coin toss animation
+    if (isTie) {
+      setCoinTossAnimation(true);
+      setNotification({
+        type: "tie_coin_toss",
+        message: "🪙 It's a Tie! Coin Toss...",
+        subMessage: "Both players bid the same amount. Flipping a coin to decide...",
+        winner: bidWinner,
+      });
+      
+      setTimeout(() => {
+        setNotification({
+          type: "tie_coin_toss",
+          message: bidWinner === "X" ? "🎯 You Won the Coin Toss!" : "💻 Computer Won the Coin Toss!",
+          subMessage: `${bidWinner === "X" ? "You" : "Computer"} will make the next move.`,
+          winner: bidWinner,
+        });
+        setCoinTossAnimation(false);
+        
+        setTimeout(() => {
+          setNotification(null);
+          setCurrentBidder(bidWinner);
+          setTimeLeft(TURN_TIME);
+          setIsProcessingBid(false);
+          
+          if (bidWinner === "O") {
+            executeComputerMove(board);
+          }
+        }, BID_RESULT_DELAY);
+      }, COIN_TOSS_DELAY - BID_RESULT_DELAY);
+      return;
     }
-  }, [getComputerBid, board, executeComputerMove, playerCoins, computerCoins, score]);
+    
+    // Show bid result notification with delay
+    setNotification({
+      type: bidWinner === "X" ? "bid_win" : "bid_lose",
+      message: bidWinner === "X" ? "🎯 You Won the Bid!" : "💻 Computer Won the Bid!",
+      subMessage: `You bid $${actualBid} vs Computer's $${computerBid}`,
+    });
+    
+    setTimeout(() => {
+      setNotification(null);
+      setCurrentBidder(bidWinner);
+      setTimeLeft(TURN_TIME);
+      setIsProcessingBid(false);
+      
+      if (bidWinner === "O") {
+        executeComputerMove(board);
+      }
+    }, BID_RESULT_DELAY);
+    
+  }, [getComputerBid, board, executeComputerMove, playerCoins, computerCoins, score, isProcessingBid]);
 
   const makeMove = useCallback((cellIndex: number) => {
     if (board[cellIndex] !== null || !currentBidder) return;
@@ -328,11 +411,40 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
         }
       }, 2000);
     } else {
+      // Check if player can afford to continue bidding
+      if (playerCoins <= 0) {
+        setNotification({
+          type: "bankruptcy",
+          message: "💸 You're Bankrupt!",
+          subMessage: "You can't afford to bid anymore. Computer wins!",
+        });
+        setTimeout(() => {
+          setNotification(null);
+          setWinner("O");
+          setScore(prev => ({ ...prev, computer: prev.computer + 1 }));
+        }, BANKRUPTCY_DELAY);
+        return;
+      }
+      
+      if (computerCoins <= 0) {
+        setNotification({
+          type: "bankruptcy",
+          message: "🎉 Computer Bankrupt!",
+          subMessage: "Computer can't afford to bid anymore. You win!",
+        });
+        setTimeout(() => {
+          setNotification(null);
+          setWinner("X");
+          setScore(prev => ({ ...prev, player: prev.player + 1 }));
+        }, BANKRUPTCY_DELAY);
+        return;
+      }
+      
       setIsBiddingPhase(true);
       setBidTimeLeft(BID_TIME);
       setCurrentBidder(null);
     }
-  }, [board, currentBidder, checkWinner, score]);
+  }, [board, currentBidder, checkWinner, score, playerCoins, computerCoins]);
 
   const startNextRound = () => {
     setBoard(Array(9).fill(null));
@@ -348,6 +460,8 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
     setLastBidResult(null);
     setRound(prev => prev + 1);
     setPlayerBid(10);
+    setNotification(null);
+    setIsProcessingBid(false);
   };
 
   const resetGame = () => {
@@ -366,11 +480,22 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
     setRound(1);
     setGameOver(false);
     setPlayerBid(10);
+    setNotification(null);
+    setIsProcessingBid(false);
+  };
+
+  const handleBackClick = () => {
+    setShowConfirmLeave(true);
+  };
+
+  const handleConfirmLeave = () => {
+    setShowConfirmLeave(false);
+    onBack();
   };
 
   // Bid timer effect
   useEffect(() => {
-    if (!isBiddingPhase || winner) return;
+    if (!isBiddingPhase || winner || isProcessingBid) return;
     
     const timer = setInterval(() => {
       setBidTimeLeft(prev => {
@@ -384,7 +509,7 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
     }, 1000);
     
     return () => clearInterval(timer);
-  }, [isBiddingPhase, winner, handleBidSubmit]);
+  }, [isBiddingPhase, winner, handleBidSubmit, isProcessingBid]);
 
   // Turn timer effect
   useEffect(() => {
@@ -432,7 +557,7 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <button 
-            onClick={onBack}
+            onClick={handleBackClick}
             className="p-2 rounded-xl bg-card hover:bg-muted transition-colors"
           >
             <Home className="w-5 h-5" />
@@ -504,9 +629,49 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
           </div>
         </div>
 
+        {/* Notification Overlay */}
+        <AnimatePresence>
+          {notification && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="game-card mb-4 text-center"
+            >
+              {coinTossAnimation && (
+                <div className="mb-3">
+                  <motion.div
+                    animate={{ 
+                      rotateY: [0, 180, 360, 540, 720],
+                      scale: [1, 1.2, 1, 1.2, 1]
+                    }}
+                    transition={{ 
+                      duration: 2,
+                      repeat: Infinity,
+                      ease: "easeInOut"
+                    }}
+                    className="w-16 h-16 mx-auto rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-2xl shadow-lg"
+                  >
+                    🪙
+                  </motion.div>
+                </div>
+              )}
+              <h3 className="text-lg font-bold mb-1">{notification.message}</h3>
+              {notification.subMessage && (
+                <p className="text-sm text-muted-foreground">{notification.subMessage}</p>
+              )}
+              {notification.type === "bankruptcy" && (
+                <div className="mt-2">
+                  <Loader2 className="w-5 h-5 mx-auto animate-spin text-muted-foreground" />
+                </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Inline Bidding Section */}
         <AnimatePresence mode="wait">
-          {isBiddingPhase && !winner && (
+          {isBiddingPhase && !winner && !notification && !isProcessingBid && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -575,9 +740,9 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
           )}
         </AnimatePresence>
 
-        {/* Last Bid Result */}
+        {/* Last Bid Result (only when not showing notification) */}
         <AnimatePresence>
-          {lastBidResult && !isBiddingPhase && (
+          {lastBidResult && !isBiddingPhase && !notification && (
             <motion.div 
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -596,7 +761,7 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
         </AnimatePresence>
 
         {/* Timer */}
-        {currentBidder === "X" && !winner && !isBiddingPhase && (
+        {currentBidder === "X" && !winner && !isBiddingPhase && !notification && (
           <div className="flex justify-center mb-4">
             <div className={`timer-ring ${timeLeft <= 5 ? "text-game-warning" : "text-foreground"}`}>
               <Clock className="w-4 h-4 absolute top-0 right-0 opacity-50" />
@@ -613,7 +778,7 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
                 key={index}
                 className={getCellClass(index)}
                 onClick={() => currentBidder === "X" && makeMove(index)}
-                disabled={cell !== null || currentBidder !== "X" || !!winner || isBiddingPhase}
+                disabled={cell !== null || currentBidder !== "X" || !!winner || isBiddingPhase || !!notification}
                 whileTap={{ scale: 0.95 }}
               >
                 <AnimatePresence mode="wait">
@@ -635,7 +800,7 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
 
         {/* Winner Announcement */}
         <AnimatePresence>
-          {winner && !gameOver && (
+          {winner && !gameOver && !notification && (
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -667,6 +832,15 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
         computerScore={score.computer}
         onPlayAgain={resetGame}
         onHome={onBack}
+      />
+
+      {/* Confirm Leave Dialog */}
+      <ConfirmLeaveDialog
+        open={showConfirmLeave}
+        onOpenChange={setShowConfirmLeave}
+        onConfirm={handleConfirmLeave}
+        title="Leave Game?"
+        description="Are you sure you want to leave? Your current game progress will be lost."
       />
     </div>
   );
