@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, Gamepad2, Trophy, Zap, Hash, ArrowRight, Brain, Sparkles, Flame, Lightbulb, Menu, X, MessageSquare, GitBranch } from "lucide-react";
+import { Users, Gamepad2, Trophy, Hash, Brain, Sparkles, Flame, Lightbulb, Menu, MessageSquare, GitBranch } from "lucide-react";
 import FloatingBackground from "@/components/ui/FloatingBackground";
 import {
   DropdownMenu,
@@ -23,35 +23,12 @@ export type Difficulty = "easy" | "medium" | "hard";
 interface LandingPageProps {
   onPlayComputer: (difficulty: Difficulty) => void;
   onCreateTournament: () => void;
-  onJoinTournament: () => void;
 }
 
-export default function LandingPage({ onPlayComputer, onCreateTournament, onJoinTournament }: LandingPageProps) {
-  const [joinCode, setJoinCode] = useState(["", "", "", "", "", ""]);
+export default function LandingPage({ onPlayComputer, onCreateTournament }: LandingPageProps) {
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>("medium");
   const [showHowItWorks, setShowHowItWorks] = useState(false);
   const [showSeedingRules, setShowSeedingRules] = useState(false);
-
-  const handleCodeChange = (index: number, value: string) => {
-    if (value.length > 1) return;
-    const newCode = [...joinCode];
-    newCode[index] = value.toUpperCase();
-    setJoinCode(newCode);
-    
-    // Auto-focus next input
-    if (value && index < 5) {
-      const nextInput = document.getElementById(`pin-${index + 1}`);
-      nextInput?.focus();
-    }
-  };
-
-  const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
-    if (e.key === "Backspace" && !joinCode[index] && index > 0) {
-      const prevInput = document.getElementById(`pin-${index - 1}`);
-      prevInput?.focus();
-    }
-  };
-
   const difficulties: { key: Difficulty; label: string; icon: React.ReactNode; color: string }[] = [
     { key: "easy", label: "Easy", icon: <Sparkles className="w-4 h-4" />, color: "bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30" },
     { key: "medium", label: "Medium", icon: <Brain className="w-4 h-4" />, color: "bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30" },
@@ -307,56 +284,12 @@ export default function LandingPage({ onPlayComputer, onCreateTournament, onJoin
           </p>
         </motion.div>
 
-        {/* Join Game Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="game-card mb-4"
-        >
-          <div className="flex items-start gap-4 mb-4">
-            <div className="w-12 h-12 rounded-xl bg-secondary/10 flex items-center justify-center shrink-0">
-              <Zap className="w-6 h-6 text-secondary" />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold mb-1">Join Game</h2>
-              <p className="text-sm text-muted-foreground">
-                Enter the game code to join an existing tournament
-              </p>
-            </div>
-          </div>
-          
-          {/* PIN Input */}
-          <div className="flex justify-center gap-2 mb-4">
-            {joinCode.map((digit, index) => (
-              <input
-                key={index}
-                id={`pin-${index}`}
-                type="text"
-                value={digit}
-                onChange={(e) => handleCodeChange(index, e.target.value)}
-                onKeyDown={(e) => handleKeyDown(index, e)}
-                className="pin-input"
-                maxLength={1}
-                placeholder="•"
-              />
-            ))}
-          </div>
-          
-          <button 
-            onClick={onJoinTournament}
-            className="btn-game-secondary w-full flex items-center justify-center gap-2"
-          >
-            Join Tournament
-            <ArrowRight className="w-5 h-5" />
-          </button>
-        </motion.div>
 
         {/* Play vs Computer Card */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
+          transition={{ delay: 0.3 }}
           className="game-card"
         >
           <div className="flex items-start gap-4 mb-4">
