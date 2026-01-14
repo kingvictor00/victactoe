@@ -56,9 +56,10 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
       if (computerCoins > playerCoins) return { winner: "O", line: null };
       return { winner: "tie", line: null };
     }
-    // Bankruptcy check
-    if (playerCoins <= 0 && computerCoins > 0) return { winner: "O", line: null };
-    if (computerCoins <= 0 && playerCoins > 0) return { winner: "X", line: null };
+    // Bankruptcy check - if a player has 0 coins, they lose because they can't bid anymore
+    // Minimum bid is 1, so 0 means you can't participate
+    if (playerCoins <= 0) return { winner: "O", line: null };
+    if (computerCoins <= 0) return { winner: "X", line: null };
     return { winner: null, line: null };
   }, [playerCoins, computerCoins]);
 
@@ -236,8 +237,11 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
     const computerBid = getComputerBid();
     const actualBid = Math.min(bidAmount, playerCoins);
     
-    setPlayerCoins(prev => prev - actualBid);
-    setComputerCoins(prev => prev - computerBid);
+    const newPlayerCoins = playerCoins - actualBid;
+    const newComputerCoins = computerCoins - computerBid;
+    
+    setPlayerCoins(newPlayerCoins);
+    setComputerCoins(newComputerCoins);
     
     let bidWinner: Player;
     if (actualBid > computerBid) {
@@ -254,10 +258,43 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
     setTimeLeft(TURN_TIME);
     setPlayerBid(10);
     
+    // Check for bankruptcy immediately after bidding
+    // If player has 0 coins after this round, they will lose next bidding phase
+    // But we check if they're already at 0 and can't bid anymore
+    if (newPlayerCoins <= 0) {
+      // Player is bankrupt - they lose
+      setWinner("O");
+      setScore(prev => ({ ...prev, computer: prev.computer + 1 }));
+      setTimeout(() => {
+        const newComputerScore = score.computer + 1;
+        if (newComputerScore >= 2) {
+          setGameOver(true);
+        } else {
+          startNextRound();
+        }
+      }, 2000);
+      return;
+    }
+    
+    if (newComputerCoins <= 0) {
+      // Computer is bankrupt - player wins
+      setWinner("X");
+      setScore(prev => ({ ...prev, player: prev.player + 1 }));
+      setTimeout(() => {
+        const newPlayerScore = score.player + 1;
+        if (newPlayerScore >= 2) {
+          setGameOver(true);
+        } else {
+          startNextRound();
+        }
+      }, 2000);
+      return;
+    }
+    
     if (bidWinner === "O") {
       executeComputerMove(board);
     }
-  }, [getComputerBid, board, executeComputerMove, playerCoins]);
+  }, [getComputerBid, board, executeComputerMove, playerCoins, computerCoins, score]);
 
   const makeMove = useCallback((cellIndex: number) => {
     if (board[cellIndex] !== null || !currentBidder) return;
