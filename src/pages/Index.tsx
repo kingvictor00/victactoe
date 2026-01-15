@@ -122,6 +122,7 @@ const Index = () => {
           <LandingPage 
             onPlayComputer={handlePlayComputer} 
             onCreateTournament={handleCreateTournament}
+            onJoinTournament={handleJoinTournament}
           />
         </motion.div>
       )}

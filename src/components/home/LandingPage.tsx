@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, Gamepad2, Trophy, Hash, Brain, Sparkles, Flame, Lightbulb, Menu, MessageSquare, GitBranch } from "lucide-react";
+import { Users, Gamepad2, Trophy, Hash, Brain, Sparkles, Flame, Lightbulb, Menu, MessageSquare, GitBranch, UserPlus, Send, Loader2 } from "lucide-react";
 import FloatingBackground from "@/components/ui/FloatingBackground";
 import {
   DropdownMenu,
@@ -16,6 +16,10 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import tournamentBracket from "@/assets/tournament-bracket.png";
 
 export type Difficulty = "easy" | "medium" | "hard";
@@ -23,17 +27,69 @@ export type Difficulty = "easy" | "medium" | "hard";
 interface LandingPageProps {
   onPlayComputer: (difficulty: Difficulty) => void;
   onCreateTournament: () => void;
+  onJoinTournament: () => void;
 }
 
-export default function LandingPage({ onPlayComputer, onCreateTournament }: LandingPageProps) {
+export default function LandingPage({ onPlayComputer, onCreateTournament, onJoinTournament }: LandingPageProps) {
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>("medium");
   const [showHowItWorks, setShowHowItWorks] = useState(false);
   const [showSeedingRules, setShowSeedingRules] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [feedbackName, setFeedbackName] = useState("");
+  const [feedbackEmail, setFeedbackEmail] = useState("");
+  const [feedbackMessage, setFeedbackMessage] = useState("");
+  const [isSendingFeedback, setIsSendingFeedback] = useState(false);
+  const { toast } = useToast();
+  
   const difficulties: { key: Difficulty; label: string; icon: React.ReactNode; color: string }[] = [
     { key: "easy", label: "Easy", icon: <Sparkles className="w-4 h-4" />, color: "bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30" },
     { key: "medium", label: "Medium", icon: <Brain className="w-4 h-4" />, color: "bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30" },
     { key: "hard", label: "Hard", icon: <Flame className="w-4 h-4" />, color: "bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/30" },
   ];
+
+  const handleSendFeedback = async () => {
+    if (!feedbackName.trim() || !feedbackMessage.trim()) {
+      toast({
+        title: "Missing information",
+        description: "Please enter your name and message.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSendingFeedback(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("send-feedback", {
+        body: {
+          name: feedbackName.trim(),
+          email: feedbackEmail.trim(),
+          message: feedbackMessage.trim(),
+        },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Feedback sent! 🎉",
+        description: "Thank you for your feedback. We appreciate it!",
+      });
+
+      setFeedbackName("");
+      setFeedbackEmail("");
+      setFeedbackMessage("");
+      setShowFeedback(false);
+    } catch (error: any) {
+      console.error("Error sending feedback:", error);
+      toast({
+        title: "Failed to send feedback",
+        description: "Please try again later.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSendingFeedback(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background relative">
@@ -71,7 +127,7 @@ export default function LandingPage({ onPlayComputer, onCreateTournament }: Land
                   Seeding Rules
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="cursor-pointer">
+                <DropdownMenuItem onClick={() => setShowFeedback(true)} className="cursor-pointer">
                   <MessageSquare className="w-4 h-4 mr-2" />
                   Feedback
                 </DropdownMenuItem>
@@ -223,6 +279,81 @@ export default function LandingPage({ onPlayComputer, onCreateTournament }: Land
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* Feedback Sheet */}
+      <Sheet open={showFeedback} onOpenChange={setShowFeedback}>
+        <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <MessageSquare className="w-6 h-6 text-primary" />
+              Send Feedback
+            </SheetTitle>
+            <SheetDescription>
+              We'd love to hear your thoughts!
+            </SheetDescription>
+          </SheetHeader>
+          
+          <div className="mt-6 space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Your Name *</label>
+              <Input
+                value={feedbackName}
+                onChange={(e) => setFeedbackName(e.target.value)}
+                placeholder="Enter your name"
+                className="bg-muted border-0"
+                maxLength={50}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Email (optional)</label>
+              <Input
+                type="email"
+                value={feedbackEmail}
+                onChange={(e) => setFeedbackEmail(e.target.value)}
+                placeholder="your@email.com"
+                className="bg-muted border-0"
+              />
+              <p className="text-xs text-muted-foreground">
+                If you'd like us to respond to your feedback
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Message *</label>
+              <Textarea
+                value={feedbackMessage}
+                onChange={(e) => setFeedbackMessage(e.target.value)}
+                placeholder="Tell us what you think..."
+                className="bg-muted border-0 min-h-[120px]"
+                maxLength={1000}
+              />
+              <p className="text-xs text-muted-foreground text-right">
+                {feedbackMessage.length}/1000
+              </p>
+            </div>
+
+            <button
+              onClick={handleSendFeedback}
+              disabled={isSendingFeedback || !feedbackName.trim() || !feedbackMessage.trim()}
+              className="btn-game-primary w-full flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSendingFeedback ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Send className="w-5 h-5" />
+                  Send Feedback
+                </>
+              )}
+            </button>
+          </div>
+        </SheetContent>
+      </Sheet>
+
       <div className="container max-w-lg mx-auto px-4 pt-20 pb-8">
         {/* Header */}
         <motion.div 
@@ -272,18 +403,26 @@ export default function LandingPage({ onPlayComputer, onCreateTournament }: Land
               </p>
             </div>
           </div>
-          <button 
-            onClick={onCreateTournament}
-            className="btn-game-primary w-full flex items-center justify-center gap-2"
-          >
-            <Users className="w-5 h-5" />
-            Create & Invite Friends
-          </button>
+          <div className="flex gap-2">
+            <button 
+              onClick={onCreateTournament}
+              className="btn-game-primary flex-1 flex items-center justify-center gap-2"
+            >
+              <Users className="w-5 h-5" />
+              Create
+            </button>
+            <button 
+              onClick={onJoinTournament}
+              className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-muted hover:bg-muted/80 font-semibold transition-all"
+            >
+              <UserPlus className="w-5 h-5" />
+              Join
+            </button>
+          </div>
           <p className="text-xs text-center text-muted-foreground mt-3">
             🎮 Free to play • Unlimited players
           </p>
         </motion.div>
-
 
         {/* Play vs Computer Card */}
         <motion.div

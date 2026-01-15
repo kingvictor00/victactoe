@@ -275,57 +275,6 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
     setIsBiddingPhase(false);
     setPlayerBid(10);
     
-    // Check for bankruptcy immediately after bidding
-    if (newPlayerCoins <= 0) {
-      // Player is bankrupt - they lose
-      setNotification({
-        type: "bankruptcy",
-        message: "💸 You're Bankrupt!",
-        subMessage: "You've run out of money. Computer wins this round.",
-      });
-      
-      setTimeout(() => {
-        setNotification(null);
-        setWinner("O");
-        setScore(prev => ({ ...prev, computer: prev.computer + 1 }));
-        setTimeout(() => {
-          const newComputerScore = score.computer + 1;
-          if (newComputerScore >= 2) {
-            setGameOver(true);
-          } else {
-            startNextRound();
-          }
-        }, 2000);
-      }, BANKRUPTCY_DELAY);
-      setIsProcessingBid(false);
-      return;
-    }
-    
-    if (newComputerCoins <= 0) {
-      // Computer is bankrupt - player wins
-      setNotification({
-        type: "bankruptcy",
-        message: "🎉 Computer Bankrupt!",
-        subMessage: "The computer has run out of money. You win this round!",
-      });
-      
-      setTimeout(() => {
-        setNotification(null);
-        setWinner("X");
-        setScore(prev => ({ ...prev, player: prev.player + 1 }));
-        setTimeout(() => {
-          const newPlayerScore = score.player + 1;
-          if (newPlayerScore >= 2) {
-            setGameOver(true);
-          } else {
-            startNextRound();
-          }
-        }, 2000);
-      }, BANKRUPTCY_DELAY);
-      setIsProcessingBid(false);
-      return;
-    }
-    
     // Handle tie with coin toss animation
     if (isTie) {
       setCoinTossAnimation(true);
@@ -377,7 +326,7 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
       }
     }, BID_RESULT_DELAY);
     
-  }, [getComputerBid, board, executeComputerMove, playerCoins, computerCoins, score, isProcessingBid]);
+  }, [getComputerBid, board, executeComputerMove, playerCoins, computerCoins, isProcessingBid]);
 
   const makeMove = useCallback((cellIndex: number) => {
     if (board[cellIndex] !== null || !currentBidder) return;
@@ -411,17 +360,26 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
         }
       }, 2000);
     } else {
+      // Bankruptcy check at start of next turn (before bidding phase)
       // Check if player can afford to continue bidding
       if (playerCoins <= 0) {
         setNotification({
           type: "bankruptcy",
           message: "💸 You're Bankrupt!",
-          subMessage: "You can't afford to bid anymore. Computer wins!",
+          subMessage: "You can't afford to bid anymore. Computer wins this round!",
         });
         setTimeout(() => {
           setNotification(null);
           setWinner("O");
           setScore(prev => ({ ...prev, computer: prev.computer + 1 }));
+          setTimeout(() => {
+            const newComputerScore = score.computer + 1;
+            if (newComputerScore >= 2) {
+              setGameOver(true);
+            } else {
+              startNextRound();
+            }
+          }, 2000);
         }, BANKRUPTCY_DELAY);
         return;
       }
@@ -430,12 +388,20 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
         setNotification({
           type: "bankruptcy",
           message: "🎉 Computer Bankrupt!",
-          subMessage: "Computer can't afford to bid anymore. You win!",
+          subMessage: "Computer can't afford to bid anymore. You win this round!",
         });
         setTimeout(() => {
           setNotification(null);
           setWinner("X");
           setScore(prev => ({ ...prev, player: prev.player + 1 }));
+          setTimeout(() => {
+            const newPlayerScore = score.player + 1;
+            if (newPlayerScore >= 2) {
+              setGameOver(true);
+            } else {
+              startNextRound();
+            }
+          }, 2000);
         }, BANKRUPTCY_DELAY);
         return;
       }
