@@ -403,22 +403,40 @@ export default function LandingPage({ onPlayComputer, onCreateTournament, onJoin
               </p>
             </div>
           </div>
-          <div className="flex gap-2">
-            <button 
-              onClick={onCreateTournament}
-              className="btn-game-primary flex-1 flex items-center justify-center gap-2"
-            >
-              <Users className="w-5 h-5" />
-              Create
-            </button>
-            <button 
-              onClick={onJoinTournament}
-              className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-muted hover:bg-muted/80 font-semibold transition-all"
-            >
-              <UserPlus className="w-5 h-5" />
-              Join
-            </button>
+          <button 
+            onClick={onCreateTournament}
+            className="btn-game-primary w-full flex items-center justify-center gap-2"
+          >
+            <Users className="w-5 h-5" />
+            Create Tournament
+          </button>
+        </motion.div>
+
+        {/* Join Tournament Card */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25 }}
+          className="game-card mb-4"
+        >
+          <div className="flex items-start gap-4 mb-4">
+            <div className="w-12 h-12 rounded-xl bg-secondary/20 flex items-center justify-center shrink-0">
+              <UserPlus className="w-6 h-6 text-secondary-foreground" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold mb-1">Join Tournament</h2>
+              <p className="text-sm text-muted-foreground">
+                Enter a tournament code to join an existing competition
+              </p>
+            </div>
           </div>
+          <button 
+            onClick={onJoinTournament}
+            className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-muted hover:bg-muted/80 font-semibold transition-all"
+          >
+            <UserPlus className="w-5 h-5" />
+            Join Tournament
+          </button>
           <p className="text-xs text-center text-muted-foreground mt-3">
             🎮 Free to play • Unlimited players
           </p>

@@ -194,16 +194,17 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
 
   const getComputerBid = useCallback(() => {
     const maxBid = computerCoins;
+    // Enforce minimum bid of $1 for computer as well
     if (difficulty === "easy") {
       // Easy: bid low, 1-15% of coins
-      return Math.min(Math.floor(Math.random() * Math.max(1, maxBid * 0.15)) + 1, maxBid);
+      return Math.max(1, Math.min(Math.floor(Math.random() * Math.max(1, maxBid * 0.15)) + 1, maxBid));
     } else if (difficulty === "medium") {
       // Medium: bid moderately, 5-30% of coins
-      return Math.min(Math.floor(Math.random() * Math.max(1, maxBid * 0.25)) + Math.floor(maxBid * 0.05) + 1, maxBid);
+      return Math.max(1, Math.min(Math.floor(Math.random() * Math.max(1, maxBid * 0.25)) + Math.floor(maxBid * 0.05) + 1, maxBid));
     } else {
       // Hard: bid strategically, 10-50% of coins
       const strategicBid = Math.floor(Math.random() * Math.max(1, maxBid * 0.4)) + Math.floor(maxBid * 0.1) + 1;
-      return Math.min(strategicBid, maxBid);
+      return Math.max(1, Math.min(strategicBid, maxBid));
     }
   }, [computerCoins, difficulty]);
 
@@ -251,7 +252,8 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
     setIsProcessingBid(true);
     
     const computerBid = getComputerBid();
-    const actualBid = Math.min(bidAmount, playerCoins);
+    // Enforce minimum bid of $1 - no $0 bids allowed
+    const actualBid = Math.max(1, Math.min(bidAmount, playerCoins));
     
     const newPlayerCoins = playerCoins - actualBid;
     const newComputerCoins = computerCoins - computerBid;
@@ -361,8 +363,8 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
       }, 2000);
     } else {
       // Bankruptcy check at start of next turn (before bidding phase)
-      // Check if player can afford to continue bidding
-      if (playerCoins <= 0) {
+      // Check if player can afford to continue bidding (minimum bid is $1)
+      if (playerCoins < 1) {
         setNotification({
           type: "bankruptcy",
           message: "💸 You're Bankrupt!",
@@ -384,7 +386,7 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
         return;
       }
       
-      if (computerCoins <= 0) {
+      if (computerCoins < 1) {
         setNotification({
           type: "bankruptcy",
           message: "🎉 Computer Bankrupt!",
