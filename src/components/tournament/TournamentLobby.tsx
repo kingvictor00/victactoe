@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Copy, Check, Users, Trophy, Crown } from "lucide-react";
+import { ArrowLeft, Copy, Check, Users, Trophy, Crown, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import FloatingBackground from "@/components/ui/FloatingBackground";
 import ConfirmLeaveDialog from "@/components/ui/ConfirmLeaveDialog";
+import { useToast } from "@/hooks/use-toast";
 
 interface Player {
   id: string;
@@ -53,7 +54,7 @@ function generateAvatar(name: string): { backgroundColor: string; initials: stri
 export default function TournamentLobby({
   tournamentId,
   tournamentCode,
-  isHost,
+  isHost: initialIsHost,
   currentPlayerId,
   onBack,
   onStartGame,
@@ -62,16 +63,25 @@ export default function TournamentLobby({
   const [maxPlayers, setMaxPlayers] = useState<number>(16);
   const [isUnlimited, setIsUnlimited] = useState(false);
   const [tournamentName, setTournamentName] = useState("");
+  const [tournamentStatus, setTournamentStatus] = useState<string>("waiting");
   const [copied, setCopied] = useState(false);
   const [showConfirmLeave, setShowConfirmLeave] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
+  const { toast } = useToast();
+
+  // Determine if current player is actually the host based on player data
+  const isHost = useMemo(() => {
+    const currentPlayer = players.find(p => p.id === currentPlayerId);
+    return currentPlayer?.is_host ?? initialIsHost;
+  }, [players, currentPlayerId, initialIsHost]);
 
   // Fetch tournament details and subscribe to player changes
   useEffect(() => {
     // Fetch tournament info
     const fetchTournament = async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('tournaments')
-        .select('name, max_players, is_unlimited')
+        .select('name, max_players, is_unlimited, status')
         .eq('id', tournamentId)
         .single();
       
@@ -79,28 +89,35 @@ export default function TournamentLobby({
         setTournamentName(data.name);
         setMaxPlayers(data.max_players);
         setIsUnlimited(data.is_unlimited);
+        setTournamentStatus(data.status);
+      }
+      if (error) {
+        console.error('Error fetching tournament:', error);
       }
     };
 
     // Fetch current players
     const fetchPlayers = async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('tournament_players')
-        .select('*')
+        .select('id, player_name, is_host, is_ready, joined_at')
         .eq('tournament_id', tournamentId)
         .order('joined_at', { ascending: true });
       
       if (data) {
         setPlayers(data);
       }
+      if (error) {
+        console.error('Error fetching players:', error);
+      }
     };
 
     fetchTournament();
     fetchPlayers();
 
-    // Subscribe to real-time changes
-    const channel = supabase
-      .channel(`tournament_${tournamentId}`)
+    // Subscribe to real-time changes for players
+    const playersChannel = supabase
+      .channel(`tournament_players_${tournamentId}`)
       .on(
         'postgres_changes',
         {
@@ -109,9 +126,30 @@ export default function TournamentLobby({
           table: 'tournament_players',
           filter: `tournament_id=eq.${tournamentId}`,
         },
-        () => {
+        (payload) => {
+          console.log('Player change detected:', payload);
           // Refetch players when any change occurs
           fetchPlayers();
+        }
+      )
+      .subscribe((status) => {
+        console.log('Realtime subscription status:', status);
+      });
+
+    // Also subscribe to tournament status changes
+    const tournamentChannel = supabase
+      .channel(`tournament_status_${tournamentId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'tournaments',
+          filter: `id=eq.${tournamentId}`,
+        },
+        (payload) => {
+          console.log('Tournament status change:', payload);
+          fetchTournament();
         }
       )
       .subscribe();
@@ -127,7 +165,8 @@ export default function TournamentLobby({
     localStorage.setItem('tournament_session', JSON.stringify(sessionData));
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(playersChannel);
+      supabase.removeChannel(tournamentChannel);
     };
   }, [tournamentId, tournamentCode, isHost, currentPlayerId]);
 
@@ -146,7 +185,61 @@ export default function TournamentLobby({
     onBack();
   };
 
-  const canStartGame = isHost && players.length >= 2;
+  const handleStartTournament = async () => {
+    if (!canStartGame || isStarting) return;
+    
+    setIsStarting(true);
+    
+    try {
+      // Generate random seed positions for all players
+      const shuffledPlayers = [...players].sort(() => Math.random() - 0.5);
+      
+      // Update each player with their seed position
+      for (let i = 0; i < shuffledPlayers.length; i++) {
+        const { error } = await supabase
+          .from('tournament_players')
+          .update({ seed_position: i + 1 })
+          .eq('id', shuffledPlayers[i].id);
+        
+        if (error) {
+          console.error('Error updating player seed:', error);
+          throw error;
+        }
+      }
+      
+      // Update tournament status to 'started'
+      const { error: tournamentError } = await supabase
+        .from('tournaments')
+        .update({ 
+          status: 'started',
+          started_at: new Date().toISOString()
+        })
+        .eq('id', tournamentId);
+      
+      if (tournamentError) {
+        console.error('Error starting tournament:', tournamentError);
+        throw tournamentError;
+      }
+      
+      toast({
+        title: "Tournament Started! 🎮",
+        description: `${players.length} players have been seeded. Let the games begin!`,
+      });
+      
+      onStartGame();
+    } catch (error) {
+      console.error('Failed to start tournament:', error);
+      toast({
+        title: "Failed to start tournament",
+        description: "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsStarting(false);
+    }
+  };
+
+  const canStartGame = isHost && players.length >= 2 && tournamentStatus === 'waiting';
 
   return (
     <div className="min-h-screen bg-background relative">
@@ -289,21 +382,43 @@ export default function TournamentLobby({
         </motion.div>
 
         {/* Start Button (Host only) */}
-        {isHost && (
+        {isHost && tournamentStatus === 'waiting' && (
           <motion.button
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            onClick={onStartGame}
-            disabled={!canStartGame}
+            onClick={handleStartTournament}
+            disabled={!canStartGame || isStarting}
             className="btn-game-primary w-full flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Trophy className="w-5 h-5" />
-            {canStartGame ? 'Start Tournament' : `Need at least 2 players`}
+            {isStarting ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Starting Tournament...
+              </>
+            ) : (
+              <>
+                <Trophy className="w-5 h-5" />
+                {players.length >= 2 ? 'Start Tournament' : `Need at least 2 players`}
+              </>
+            )}
           </motion.button>
         )}
 
-        {!isHost && (
+        {isHost && tournamentStatus === 'started' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="game-card text-center"
+          >
+            <Trophy className="w-8 h-8 mx-auto mb-2 text-primary" />
+            <p className="font-medium">Tournament Started!</p>
+            <p className="text-sm text-muted-foreground">Matches are being prepared...</p>
+          </motion.div>
+        )}
+
+        {!isHost && tournamentStatus === 'waiting' && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -311,6 +426,19 @@ export default function TournamentLobby({
             className="text-center text-muted-foreground"
           >
             Waiting for host to start the tournament...
+          </motion.div>
+        )}
+
+        {!isHost && tournamentStatus === 'started' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="game-card text-center"
+          >
+            <Trophy className="w-8 h-8 mx-auto mb-2 text-primary" />
+            <p className="font-medium">Tournament Started!</p>
+            <p className="text-sm text-muted-foreground">Get ready for your match...</p>
           </motion.div>
         )}
       </div>
