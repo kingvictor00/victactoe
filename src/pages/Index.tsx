@@ -5,8 +5,9 @@ import GameBoard from "@/components/game/GameBoard";
 import CreateTournament from "@/components/tournament/CreateTournament";
 import JoinTournament from "@/components/tournament/JoinTournament";
 import TournamentLobby from "@/components/tournament/TournamentLobby";
+import TournamentGame from "@/components/tournament/TournamentGame";
 
-type GameMode = "landing" | "computer" | "create-tournament" | "join-tournament" | "tournament-lobby";
+type GameMode = "landing" | "computer" | "create-tournament" | "join-tournament" | "tournament-lobby" | "tournament-game";
 
 interface TournamentSession {
   tournamentId: string;
@@ -105,8 +106,16 @@ const Index = () => {
   };
 
   const handleStartGame = () => {
-    // TODO: Implement game start logic
-    console.log("Starting tournament game...");
+    setGameMode("tournament-game");
+  };
+
+  const handleLeaveTournamentGame = () => {
+    localStorage.removeItem('tournament_session');
+    setTournamentId(null);
+    setTournamentCode(null);
+    setCurrentPlayerId(null);
+    setIsHost(false);
+    setGameMode("landing");
   };
 
   return (
@@ -184,6 +193,22 @@ const Index = () => {
             currentPlayerId={currentPlayerId}
             onBack={handleLeaveLobby}
             onStartGame={handleStartGame}
+          />
+        </motion.div>
+      )}
+
+      {gameMode === "tournament-game" && tournamentId && currentPlayerId && (
+        <motion.div
+          key="tournament-game"
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: 20 }}
+          transition={{ duration: 0.3 }}
+        >
+          <TournamentGame
+            tournamentId={tournamentId}
+            currentPlayerId={currentPlayerId}
+            onBack={handleLeaveTournamentGame}
           />
         </motion.div>
       )}
