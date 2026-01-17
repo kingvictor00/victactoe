@@ -90,6 +90,11 @@ export default function TournamentLobby({
         setMaxPlayers(data.max_players);
         setIsUnlimited(data.is_unlimited);
         setTournamentStatus(data.status);
+        
+        // Auto-transition to game when tournament starts
+        if (data.status === 'in_progress') {
+          onStartGame();
+        }
       }
       if (error) {
         console.error('Error fetching tournament:', error);
@@ -149,6 +154,7 @@ export default function TournamentLobby({
         },
         (payload) => {
           console.log('Tournament status change:', payload);
+          // Refetch and handle status change
           fetchTournament();
         }
       )
@@ -168,7 +174,7 @@ export default function TournamentLobby({
       supabase.removeChannel(playersChannel);
       supabase.removeChannel(tournamentChannel);
     };
-  }, [tournamentId, tournamentCode, isHost, currentPlayerId]);
+  }, [tournamentId, tournamentCode, isHost, currentPlayerId, onStartGame]);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(tournamentCode);
