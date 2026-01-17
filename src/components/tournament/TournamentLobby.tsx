@@ -207,11 +207,11 @@ export default function TournamentLobby({
         }
       }
       
-      // Update tournament status to 'started'
+      // Update tournament status to 'in_progress'
       const { error: tournamentError } = await supabase
         .from('tournaments')
         .update({ 
-          status: 'started',
+          status: 'in_progress',
           started_at: new Date().toISOString()
         })
         .eq('id', tournamentId);
