@@ -200,16 +200,39 @@ export default function TournamentLobby({
       // Generate random seed positions for all players
       const shuffledPlayers = [...players].sort(() => Math.random() - 0.5);
       
-      // Update each player with their seed position
+      // Update each player with their seed position AND reset is_ready to false
       for (let i = 0; i < shuffledPlayers.length; i++) {
         const { error } = await supabase
           .from('tournament_players')
-          .update({ seed_position: i + 1 })
+          .update({ 
+            seed_position: i + 1,
+            is_ready: false // Reset ready state for match ready check
+          })
           .eq('id', shuffledPlayers[i].id);
         
         if (error) {
           console.error('Error updating player seed:', error);
           throw error;
+        }
+      }
+      
+      // Create matches for first round (pair players by seed position)
+      for (let i = 0; i < shuffledPlayers.length; i += 2) {
+        if (i + 1 < shuffledPlayers.length) {
+          const { error: matchError } = await supabase
+            .from('tournament_matches')
+            .insert({
+              tournament_id: tournamentId,
+              player1_id: shuffledPlayers[i].id,
+              player2_id: shuffledPlayers[i + 1].id,
+              round_number: 1,
+              status: 'pending',
+            });
+          
+          if (matchError) {
+            console.error('Error creating match:', matchError);
+            throw matchError;
+          }
         }
       }
       
