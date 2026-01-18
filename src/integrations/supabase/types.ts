@@ -14,6 +14,73 @@ export type Database = {
   }
   public: {
     Tables: {
+      tournament_matches: {
+        Row: {
+          board: string
+          completed_at: string | null
+          created_at: string
+          current_turn: string
+          id: string
+          player1_id: string
+          player2_id: string
+          round_number: number
+          status: string
+          tournament_id: string
+          winner: string | null
+          winning_line: string | null
+        }
+        Insert: {
+          board?: string
+          completed_at?: string | null
+          created_at?: string
+          current_turn?: string
+          id?: string
+          player1_id: string
+          player2_id: string
+          round_number?: number
+          status?: string
+          tournament_id: string
+          winner?: string | null
+          winning_line?: string | null
+        }
+        Update: {
+          board?: string
+          completed_at?: string | null
+          created_at?: string
+          current_turn?: string
+          id?: string
+          player1_id?: string
+          player2_id?: string
+          round_number?: number
+          status?: string
+          tournament_id?: string
+          winner?: string | null
+          winning_line?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tournament_matches_player1_id_fkey"
+            columns: ["player1_id"]
+            isOneToOne: false
+            referencedRelation: "tournament_players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tournament_matches_player2_id_fkey"
+            columns: ["player2_id"]
+            isOneToOne: false
+            referencedRelation: "tournament_players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tournament_matches_tournament_id_fkey"
+            columns: ["tournament_id"]
+            isOneToOne: false
+            referencedRelation: "tournaments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tournament_players: {
         Row: {
           id: string
