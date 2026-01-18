@@ -154,11 +154,20 @@ export default function TournamentGame({
 
   // Initial fetch and subscriptions
   useEffect(() => {
-    fetchData();
+    let isMounted = true;
+    
+    const loadData = async () => {
+      await fetchData();
+    };
+    
+    loadData();
+
+    // Use unique channel names with timestamp to avoid conflicts
+    const channelSuffix = `${tournamentId}_${currentPlayerId}_${Date.now()}`;
 
     // Subscribe to player changes for ready status
     const playersChannel = supabase
-      .channel(`tournament_game_players_${tournamentId}`)
+      .channel(`game_players_${channelSuffix}`)
       .on(
         'postgres_changes',
         {
@@ -168,17 +177,24 @@ export default function TournamentGame({
           filter: `tournament_id=eq.${tournamentId}`,
         },
         (payload) => {
+          if (!isMounted) return;
           console.log('Player change:', payload);
           fetchData();
         }
       )
       .subscribe((status) => {
         console.log('Players subscription:', status);
+        if (status === 'CHANNEL_ERROR') {
+          // Retry subscription after a short delay
+          setTimeout(() => {
+            if (isMounted) fetchData();
+          }, 1000);
+        }
       });
 
     // Subscribe to match changes for game state sync
     const matchChannel = supabase
-      .channel(`tournament_matches_${tournamentId}`)
+      .channel(`game_matches_${channelSuffix}`)
       .on(
         'postgres_changes',
         {
@@ -188,6 +204,7 @@ export default function TournamentGame({
           filter: `tournament_id=eq.${tournamentId}`,
         },
         (payload) => {
+          if (!isMounted) return;
           console.log('Match change:', payload);
           // Update match state directly from payload for faster sync
           const newMatch = payload.new as TournamentMatch;
@@ -198,9 +215,24 @@ export default function TournamentGame({
       )
       .subscribe((status) => {
         console.log('Match subscription:', status);
+        if (status === 'CHANNEL_ERROR') {
+          // Retry subscription after a short delay
+          setTimeout(() => {
+            if (isMounted) fetchData();
+          }, 1000);
+        }
       });
 
+    // Poll for updates as a fallback (every 2 seconds)
+    const pollInterval = setInterval(() => {
+      if (isMounted) {
+        fetchData();
+      }
+    }, 2000);
+
     return () => {
+      isMounted = false;
+      clearInterval(pollInterval);
       supabase.removeChannel(playersChannel);
       supabase.removeChannel(matchChannel);
     };

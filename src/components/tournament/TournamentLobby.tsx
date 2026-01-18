@@ -77,6 +77,8 @@ export default function TournamentLobby({
 
   // Fetch tournament details and subscribe to player changes
   useEffect(() => {
+    let isMounted = true;
+    
     // Fetch tournament info
     const fetchTournament = async () => {
       const { data, error } = await supabase
@@ -84,6 +86,8 @@ export default function TournamentLobby({
         .select('name, max_players, is_unlimited, status')
         .eq('id', tournamentId)
         .single();
+      
+      if (!isMounted) return;
       
       if (data) {
         setTournamentName(data.name);
@@ -93,6 +97,7 @@ export default function TournamentLobby({
         
         // Auto-transition to game when tournament starts
         if (data.status === 'in_progress') {
+          console.log('Tournament in progress, transitioning to game...');
           onStartGame();
         }
       }
@@ -108,6 +113,8 @@ export default function TournamentLobby({
         .select('id, player_name, is_host, is_ready, joined_at')
         .eq('tournament_id', tournamentId)
         .order('joined_at', { ascending: true });
+      
+      if (!isMounted) return;
       
       if (data) {
         setPlayers(data);
@@ -154,8 +161,16 @@ export default function TournamentLobby({
         },
         (payload) => {
           console.log('Tournament status change:', payload);
-          // Refetch and handle status change
-          fetchTournament();
+          if (!isMounted) return;
+          
+          const newStatus = (payload.new as { status: string }).status;
+          setTournamentStatus(newStatus);
+          
+          // Immediately transition when status changes to in_progress
+          if (newStatus === 'in_progress') {
+            console.log('Tournament started via realtime, transitioning to game...');
+            onStartGame();
+          }
         }
       )
       .subscribe();
@@ -171,6 +186,7 @@ export default function TournamentLobby({
     localStorage.setItem('tournament_session', JSON.stringify(sessionData));
 
     return () => {
+      isMounted = false;
       supabase.removeChannel(playersChannel);
       supabase.removeChannel(tournamentChannel);
     };
