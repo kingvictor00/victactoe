@@ -72,7 +72,7 @@ export default function CreateTournament({ onBack, onTournamentCreated }: Create
 
       if (playerError) throw playerError;
 
-      // Save session to localStorage for persistence
+      // Save session to sessionStorage for persistence (prevents cross-tab collisions)
       const sessionData = {
         tournamentId: tournament.id,
         tournamentCode: code,
@@ -81,7 +81,7 @@ export default function CreateTournament({ onBack, onTournamentCreated }: Create
         playerName: hostName.trim(),
         timestamp: Date.now(),
       };
-      localStorage.setItem('tournament_session', JSON.stringify(sessionData));
+      sessionStorage.setItem('tournament_session', JSON.stringify(sessionData));
 
       onTournamentCreated(code, tournament.id, player.id);
     } catch (error) {

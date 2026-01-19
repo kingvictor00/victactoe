@@ -121,7 +121,7 @@ export default function JoinTournament({ onBack, onJoined }: JoinTournamentProps
 
       if (playerError) throw playerError;
 
-      // Save session to localStorage
+      // Save session to sessionStorage (prevents cross-tab collisions)
       const sessionData = {
         tournamentId: tournamentInfo.id,
         tournamentCode: code.toUpperCase(),
@@ -130,7 +130,7 @@ export default function JoinTournament({ onBack, onJoined }: JoinTournamentProps
         playerName: playerName.trim(),
         timestamp: Date.now(),
       };
-      localStorage.setItem('tournament_session', JSON.stringify(sessionData));
+      sessionStorage.setItem('tournament_session', JSON.stringify(sessionData));
 
       onJoined(tournamentInfo.id, code.toUpperCase(), player.id);
     } catch (err) {
