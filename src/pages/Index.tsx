@@ -30,7 +30,7 @@ const Index = () => {
 
   // Restore session on mount
   useEffect(() => {
-    const savedSession = localStorage.getItem('tournament_session');
+    const savedSession = sessionStorage.getItem('tournament_session');
     if (savedSession) {
       try {
         const session: TournamentSession = JSON.parse(savedSession);
@@ -43,21 +43,21 @@ const Index = () => {
           setGameMode("tournament-lobby");
         } else {
           // Session expired, clear it
-          localStorage.removeItem('tournament_session');
+          sessionStorage.removeItem('tournament_session');
         }
       } catch (e) {
-        localStorage.removeItem('tournament_session');
+        sessionStorage.removeItem('tournament_session');
       }
     }
 
     // Save state periodically to handle minimizing
     const saveInterval = setInterval(() => {
-      const currentSession = localStorage.getItem('tournament_session');
+      const currentSession = sessionStorage.getItem('tournament_session');
       if (currentSession) {
         try {
           const session: TournamentSession = JSON.parse(currentSession);
           session.timestamp = Date.now();
-          localStorage.setItem('tournament_session', JSON.stringify(session));
+          sessionStorage.setItem('tournament_session', JSON.stringify(session));
         } catch (e) {
           // Ignore
         }
@@ -97,7 +97,7 @@ const Index = () => {
   };
 
   const handleLeaveLobby = () => {
-    localStorage.removeItem('tournament_session');
+    sessionStorage.removeItem('tournament_session');
     setTournamentId(null);
     setTournamentCode(null);
     setCurrentPlayerId(null);
@@ -110,7 +110,7 @@ const Index = () => {
   };
 
   const handleLeaveTournamentGame = () => {
-    localStorage.removeItem('tournament_session');
+    sessionStorage.removeItem('tournament_session');
     setTournamentId(null);
     setTournamentCode(null);
     setCurrentPlayerId(null);

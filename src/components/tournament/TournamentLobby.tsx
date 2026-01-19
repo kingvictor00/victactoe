@@ -181,7 +181,7 @@ export default function TournamentLobby({
       fetchPlayers();
     }, 1500);
 
-    // Persist session to localStorage
+    // Persist session to sessionStorage (prevents cross-tab collisions)
     const sessionData = {
       tournamentId,
       tournamentCode,
@@ -189,7 +189,7 @@ export default function TournamentLobby({
       currentPlayerId,
       timestamp: Date.now(),
     };
-    localStorage.setItem('tournament_session', JSON.stringify(sessionData));
+    sessionStorage.setItem('tournament_session', JSON.stringify(sessionData));
 
     return () => {
       isMounted = false;
