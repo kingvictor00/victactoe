@@ -91,6 +91,23 @@ export default function JoinTournament({ onBack, onJoined }: JoinTournamentProps
     setError(null);
 
     try {
+      // Confirm the tournament is still joinable right before inserting.
+      // (Prevents edge cases where host starts while a player is on the name step.)
+      const { data: latestTournament, error: latestTournamentError } = await supabase
+        .from('tournaments')
+        .select('status')
+        .eq('id', tournamentInfo.id)
+        .single();
+
+      if (latestTournamentError || !latestTournament) {
+        throw latestTournamentError ?? new Error('Tournament not found');
+      }
+
+      if (latestTournament.status !== 'waiting') {
+        setError('This tournament has already started.');
+        return;
+      }
+
       // Insert player
       const { data: player, error: playerError } = await supabase
         .from('tournament_players')
