@@ -162,10 +162,10 @@ export default function TournamentLobby({
         (payload) => {
           console.log('Tournament status change:', payload);
           if (!isMounted) return;
-          
+
           const newStatus = (payload.new as { status: string }).status;
           setTournamentStatus(newStatus);
-          
+
           // Immediately transition when status changes to in_progress
           if (newStatus === 'in_progress') {
             console.log('Tournament started via realtime, transitioning to game...');
@@ -174,6 +174,12 @@ export default function TournamentLobby({
         }
       )
       .subscribe();
+
+    // Polling fallback (keeps non-hosts in sync even if realtime drops)
+    const pollInterval = window.setInterval(() => {
+      fetchTournament();
+      fetchPlayers();
+    }, 1500);
 
     // Persist session to localStorage
     const sessionData = {
@@ -187,6 +193,7 @@ export default function TournamentLobby({
 
     return () => {
       isMounted = false;
+      clearInterval(pollInterval);
       supabase.removeChannel(playersChannel);
       supabase.removeChannel(tournamentChannel);
     };
@@ -209,75 +216,107 @@ export default function TournamentLobby({
 
   const handleStartTournament = async () => {
     if (!canStartGame || isStarting) return;
-    
+
     setIsStarting(true);
-    
+
     try {
+      // Always refetch the latest player list to avoid stale state when starting.
+      const { data: latestPlayers, error: latestPlayersError } = await supabase
+        .from('tournament_players')
+        .select('id, player_name, is_host, is_ready, joined_at')
+        .eq('tournament_id', tournamentId)
+        .order('joined_at', { ascending: true });
+
+      if (latestPlayersError) throw latestPlayersError;
+
+      const activePlayers = latestPlayers ?? [];
+
+      if (activePlayers.length < 2) {
+        toast({
+          title: 'Need at least 2 players',
+          description: 'Wait for another player to join before starting.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       // Generate random seed positions for all players
-      const shuffledPlayers = [...players].sort(() => Math.random() - 0.5);
-      
+      const shuffledPlayers = [...activePlayers].sort(() => Math.random() - 0.5);
+
       // Update each player with their seed position AND reset is_ready to false
       for (let i = 0; i < shuffledPlayers.length; i++) {
         const { error } = await supabase
           .from('tournament_players')
-          .update({ 
+          .update({
             seed_position: i + 1,
-            is_ready: false // Reset ready state for match ready check
+            is_ready: false, // Reset ready state for match ready check
           })
           .eq('id', shuffledPlayers[i].id);
-        
+
         if (error) {
           console.error('Error updating player seed:', error);
           throw error;
         }
       }
-      
+
       // Create matches for first round (pair players by seed position)
+      const matchesToCreate: Array<{
+        tournament_id: string;
+        player1_id: string;
+        player2_id: string;
+        round_number: number;
+        status: string;
+      }> = [];
+
       for (let i = 0; i < shuffledPlayers.length; i += 2) {
         if (i + 1 < shuffledPlayers.length) {
-          const { error: matchError } = await supabase
-            .from('tournament_matches')
-            .insert({
-              tournament_id: tournamentId,
-              player1_id: shuffledPlayers[i].id,
-              player2_id: shuffledPlayers[i + 1].id,
-              round_number: 1,
-              status: 'pending',
-            });
-          
-          if (matchError) {
-            console.error('Error creating match:', matchError);
-            throw matchError;
-          }
+          matchesToCreate.push({
+            tournament_id: tournamentId,
+            player1_id: shuffledPlayers[i].id,
+            player2_id: shuffledPlayers[i + 1].id,
+            round_number: 1,
+            status: 'pending',
+          });
         }
       }
-      
+
+      if (matchesToCreate.length > 0) {
+        const { error: matchError } = await supabase
+          .from('tournament_matches')
+          .insert(matchesToCreate);
+
+        if (matchError) {
+          console.error('Error creating match:', matchError);
+          throw matchError;
+        }
+      }
+
       // Update tournament status to 'in_progress'
       const { error: tournamentError } = await supabase
         .from('tournaments')
-        .update({ 
+        .update({
           status: 'in_progress',
-          started_at: new Date().toISOString()
+          started_at: new Date().toISOString(),
         })
         .eq('id', tournamentId);
-      
+
       if (tournamentError) {
         console.error('Error starting tournament:', tournamentError);
         throw tournamentError;
       }
-      
+
       toast({
-        title: "Tournament Started! 🎮",
-        description: `${players.length} players have been seeded. Let the games begin!`,
+        title: 'Tournament Started! 🎮',
+        description: `${activePlayers.length} players have been seeded. Let the games begin!`,
       });
-      
+
       onStartGame();
     } catch (error) {
       console.error('Failed to start tournament:', error);
       toast({
-        title: "Failed to start tournament",
-        description: "Please try again.",
-        variant: "destructive",
+        title: 'Failed to start tournament',
+        description: 'Please try again.',
+        variant: 'destructive',
       });
     } finally {
       setIsStarting(false);
