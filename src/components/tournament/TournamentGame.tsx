@@ -273,19 +273,21 @@ export default function TournamentGame({
   }, [currentMatch, matchInfo, toast]);
 
   const handleReady = async () => {
-    const newReadyState = !isReady;
-    setIsReady(newReadyState);
+    // Prevent un-ready toggles (keeps both clients moving forward deterministically)
+    if (isReady) return;
 
-    console.log('Updating ready state to:', newReadyState);
+    setIsReady(true);
+
+    console.log('Updating ready state to: true');
 
     const { error } = await supabase
       .from('tournament_players')
-      .update({ is_ready: newReadyState })
+      .update({ is_ready: true })
       .eq('id', currentPlayerId);
 
     if (error) {
       console.error('Error updating ready state:', error);
-      setIsReady(!newReadyState);
+      setIsReady(false);
       toast({
         title: "Error",
         description: "Failed to update ready state",
