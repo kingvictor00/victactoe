@@ -127,9 +127,12 @@ export default function TournamentLobby({
     fetchTournament();
     fetchPlayers();
 
+    // Use unique channel names per client instance to avoid collisions
+    const channelSuffix = `${tournamentId}_${currentPlayerId}_${Date.now()}`;
+
     // Subscribe to real-time changes for players
     const playersChannel = supabase
-      .channel(`tournament_players_${tournamentId}`)
+      .channel(`tournament_players_${channelSuffix}`)
       .on(
         'postgres_changes',
         {
@@ -145,12 +148,12 @@ export default function TournamentLobby({
         }
       )
       .subscribe((status) => {
-        console.log('Realtime subscription status:', status);
+        console.log('Players realtime subscription status:', status);
       });
 
     // Also subscribe to tournament status changes
     const tournamentChannel = supabase
-      .channel(`tournament_status_${tournamentId}`)
+      .channel(`tournament_status_${channelSuffix}`)
       .on(
         'postgres_changes',
         {
@@ -240,54 +243,68 @@ export default function TournamentLobby({
         return;
       }
 
-      // Generate random seed positions for all players
-      const shuffledPlayers = [...activePlayers].sort(() => Math.random() - 0.5);
+      // If round 1 matches already exist (e.g., a retry after a flaky connection),
+      // don't create duplicates—just continue to status update.
+      const { count: existingMatchCount, error: existingMatchCountError } = await supabase
+        .from('tournament_matches')
+        .select('*', { count: 'exact', head: true })
+        .eq('tournament_id', tournamentId)
+        .eq('round_number', 1);
 
-      // Update each player with their seed position AND reset is_ready to false
-      for (let i = 0; i < shuffledPlayers.length; i++) {
-        const { error } = await supabase
-          .from('tournament_players')
-          .update({
-            seed_position: i + 1,
-            is_ready: false, // Reset ready state for match ready check
-          })
-          .eq('id', shuffledPlayers[i].id);
+      if (existingMatchCountError) throw existingMatchCountError;
 
-        if (error) {
-          console.error('Error updating player seed:', error);
-          throw error;
+      const hasExistingMatches = (existingMatchCount ?? 0) > 0;
+
+      if (!hasExistingMatches) {
+        // Generate random seed positions for all players
+        const shuffledPlayers = [...activePlayers].sort(() => Math.random() - 0.5);
+
+        // Update each player with their seed position AND reset is_ready to false
+        const updateResults = await Promise.all(
+          shuffledPlayers.map((p, idx) =>
+            supabase
+              .from('tournament_players')
+              .update({
+                seed_position: idx + 1,
+                is_ready: false, // Reset ready state for match ready check
+              })
+              .eq('id', p.id)
+          )
+        );
+
+        const firstUpdateError = updateResults.find(r => r.error)?.error;
+        if (firstUpdateError) throw firstUpdateError;
+
+        // Create matches for first round (pair players by seed position)
+        const matchesToCreate: Array<{
+          tournament_id: string;
+          player1_id: string;
+          player2_id: string;
+          round_number: number;
+          status: string;
+        }> = [];
+
+        for (let i = 0; i < shuffledPlayers.length; i += 2) {
+          if (i + 1 < shuffledPlayers.length) {
+            matchesToCreate.push({
+              tournament_id: tournamentId,
+              player1_id: shuffledPlayers[i].id,
+              player2_id: shuffledPlayers[i + 1].id,
+              round_number: 1,
+              status: 'pending',
+            });
+          }
         }
-      }
 
-      // Create matches for first round (pair players by seed position)
-      const matchesToCreate: Array<{
-        tournament_id: string;
-        player1_id: string;
-        player2_id: string;
-        round_number: number;
-        status: string;
-      }> = [];
+        if (matchesToCreate.length > 0) {
+          const { error: matchError } = await supabase
+            .from('tournament_matches')
+            .insert(matchesToCreate);
 
-      for (let i = 0; i < shuffledPlayers.length; i += 2) {
-        if (i + 1 < shuffledPlayers.length) {
-          matchesToCreate.push({
-            tournament_id: tournamentId,
-            player1_id: shuffledPlayers[i].id,
-            player2_id: shuffledPlayers[i + 1].id,
-            round_number: 1,
-            status: 'pending',
-          });
-        }
-      }
-
-      if (matchesToCreate.length > 0) {
-        const { error: matchError } = await supabase
-          .from('tournament_matches')
-          .insert(matchesToCreate);
-
-        if (matchError) {
-          console.error('Error creating match:', matchError);
-          throw matchError;
+          if (matchError) {
+            console.error('Error creating match:', matchError);
+            throw matchError;
+          }
         }
       }
 
@@ -489,7 +506,7 @@ export default function TournamentLobby({
           </motion.button>
         )}
 
-        {isHost && tournamentStatus === 'started' && (
+        {tournamentStatus === 'in_progress' && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -499,30 +516,6 @@ export default function TournamentLobby({
             <Trophy className="w-8 h-8 mx-auto mb-2 text-primary" />
             <p className="font-medium">Tournament Started!</p>
             <p className="text-sm text-muted-foreground">Matches are being prepared...</p>
-          </motion.div>
-        )}
-
-        {!isHost && tournamentStatus === 'waiting' && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="text-center text-muted-foreground"
-          >
-            Waiting for host to start the tournament...
-          </motion.div>
-        )}
-
-        {!isHost && tournamentStatus === 'started' && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="game-card text-center"
-          >
-            <Trophy className="w-8 h-8 mx-auto mb-2 text-primary" />
-            <p className="font-medium">Tournament Started!</p>
-            <p className="text-sm text-muted-foreground">Get ready for your match...</p>
           </motion.div>
         )}
       </div>
