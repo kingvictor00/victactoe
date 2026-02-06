@@ -16,13 +16,25 @@ export type Database = {
     Tables: {
       tournament_matches: {
         Row: {
+          bid_winner: string | null
           board: string
           completed_at: string | null
           created_at: string
+          current_round: number
           current_turn: string
           id: string
+          is_bidding_phase: boolean
+          last_bid_result: Json | null
+          match_winner: string | null
+          phase_deadline: string | null
+          player1_bid: number | null
+          player1_coins: number
           player1_id: string
+          player1_score: number
+          player2_bid: number | null
+          player2_coins: number
           player2_id: string
+          player2_score: number
           round_number: number
           status: string
           tournament_id: string
@@ -30,13 +42,25 @@ export type Database = {
           winning_line: string | null
         }
         Insert: {
+          bid_winner?: string | null
           board?: string
           completed_at?: string | null
           created_at?: string
+          current_round?: number
           current_turn?: string
           id?: string
+          is_bidding_phase?: boolean
+          last_bid_result?: Json | null
+          match_winner?: string | null
+          phase_deadline?: string | null
+          player1_bid?: number | null
+          player1_coins?: number
           player1_id: string
+          player1_score?: number
+          player2_bid?: number | null
+          player2_coins?: number
           player2_id: string
+          player2_score?: number
           round_number?: number
           status?: string
           tournament_id: string
@@ -44,13 +68,25 @@ export type Database = {
           winning_line?: string | null
         }
         Update: {
+          bid_winner?: string | null
           board?: string
           completed_at?: string | null
           created_at?: string
+          current_round?: number
           current_turn?: string
           id?: string
+          is_bidding_phase?: boolean
+          last_bid_result?: Json | null
+          match_winner?: string | null
+          phase_deadline?: string | null
+          player1_bid?: number | null
+          player1_coins?: number
           player1_id?: string
+          player1_score?: number
+          player2_bid?: number | null
+          player2_coins?: number
           player2_id?: string
+          player2_score?: number
           round_number?: number
           status?: string
           tournament_id?: string
