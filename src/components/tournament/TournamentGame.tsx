@@ -71,13 +71,20 @@ const boardArrayToString = (board: Board): string => {
   return board.map(c => c === null ? '-' : c).join('');
 };
 
-type NotificationType = "bid_win" | "bid_lose" | "tie_coin_toss" | "round_win" | "round_lose" | "match_win" | "match_lose" | "opponent_turn";
+type NotificationType = "bid_win" | "bid_lose" | "tie_coin_toss" | "round_win" | "round_lose" | "match_win" | "match_lose" | "opponent_turn" | "your_turn" | "coin_toss_animation";
 
 interface Notification {
   type: NotificationType;
   message: string;
   subMessage?: string;
 }
+
+// Generate a cryptographically fair random boolean using Web Crypto API
+const generateFairCoinToss = (): boolean => {
+  const array = new Uint32Array(1);
+  crypto.getRandomValues(array);
+  return array[0] % 2 === 0;
+};
 
 export default function TournamentGame({
   tournamentId,
@@ -408,9 +415,22 @@ export default function TournamentGame({
     } else if (p2Bid > p1Bid) {
       bidWinnerSymbol = "O";
     } else {
-      // Tie - coin toss (use deterministic seed from match id for consistency)
-      const seed = currentMatch.id.charCodeAt(0) + currentMatch.current_round;
-      bidWinnerSymbol = seed % 2 === 0 ? "X" : "O";
+      // Tie - fair coin toss using cryptographic random
+      // Player1 determines the result and writes it to the database
+      // Player2 reads the result from the database
+      if (matchInfo.isPlayer1) {
+        bidWinnerSymbol = generateFairCoinToss() ? "X" : "O";
+      } else {
+        // Non-player1 waits for the result from the database
+        // The result will come through realtime update
+        setNotification({
+          type: "coin_toss_animation",
+          message: "🪙 Tie! Coin Toss...",
+          subMessage: "Flipping the coin...",
+        });
+        setIsProcessing(false);
+        return; // Exit and let realtime handle the update
+      }
     }
 
     const newP1Coins = currentMatch.player1_coins - p1Bid;
@@ -459,9 +479,30 @@ export default function TournamentGame({
       });
     }
 
+    // Show bid result, then show turn message
     setTimeout(() => {
-      setNotification(null);
-      setIsProcessing(false);
+      // After bid result, show clear turn instruction
+      if (didWin) {
+        setNotification({
+          type: "your_turn",
+          message: "🎮 Your Turn!",
+          subMessage: "Tap any empty cell to place your mark",
+        });
+        setTimeout(() => {
+          setNotification(null);
+          setIsProcessing(false);
+        }, 1500);
+      } else {
+        setNotification({
+          type: "opponent_turn",
+          message: `⏳ ${matchInfo.opponent.player_name}'s Turn`,
+          subMessage: "Waiting for them to place their mark...",
+        });
+        setTimeout(() => {
+          setNotification(null);
+          setIsProcessing(false);
+        }, 1500);
+      }
     }, BID_RESULT_DELAY);
   }, [currentMatch, matchInfo]);
 
@@ -593,11 +634,34 @@ export default function TournamentGame({
       .update({ is_eliminated: true })
       .eq('id', loserId);
 
-    // Check if tournament is over (2-player tournament or final match)
-    const remainingPlayers = allPlayers.filter(p => !p.is_eliminated && p.id !== loserId);
+    // Refetch all players to get latest elimination state
+    const { data: latestPlayers } = await supabase
+      .from('tournament_players')
+      .select('*')
+      .eq('tournament_id', tournamentId);
 
-    if (remainingPlayers.length <= 1 || totalPlayerCount === 2) {
-      // Tournament complete!
+    const updatedAllPlayers = latestPlayers || allPlayers;
+    
+    // Count remaining non-eliminated players (excluding the one we just eliminated)
+    const remainingPlayers = updatedAllPlayers.filter(p => !p.is_eliminated && p.id !== loserId);
+
+    // Calculate total rounds needed
+    const totalRounds = Math.ceil(Math.log2(totalPlayerCount));
+    
+    // Get current round number from the match
+    const { data: currentMatchData } = await supabase
+      .from('tournament_matches')
+      .select('round_number')
+      .eq('id', currentMatch.id)
+      .single();
+    
+    const currentRoundNumber = currentMatchData?.round_number || 1;
+
+    // Check if tournament is complete (only 1 winner remaining or 2-player tournament)
+    const isTournamentComplete = remainingPlayers.length <= 1 || totalPlayerCount === 2;
+
+    if (isTournamentComplete) {
+      // Tournament complete! Update status
       await supabase
         .from('tournaments')
         .update({
@@ -606,9 +670,14 @@ export default function TournamentGame({
         })
         .eq('id', tournamentId);
 
-      // Build rankings
-      const winnerPlayer = allPlayers.find(p => p.id === winnerId);
-      const loserPlayer = allPlayers.find(p => p.id === loserId);
+      // Build rankings based on elimination order
+      const winnerPlayer = updatedAllPlayers.find(p => p.id === winnerId);
+      const loserPlayer = updatedAllPlayers.find(p => p.id === loserId);
+
+      // Get all eliminated players sorted by when they were eliminated (most recent = higher rank)
+      const otherEliminated = updatedAllPlayers.filter(
+        p => p.is_eliminated && p.id !== loserId
+      );
 
       const rankings = [
         {
@@ -625,8 +694,7 @@ export default function TournamentGame({
         },
       ];
 
-      // Add other eliminated players
-      const otherEliminated = allPlayers.filter(p => p.is_eliminated && p.id !== loserId);
+      // Add other eliminated players in order
       otherEliminated.forEach((p, idx) => {
         rankings.push({
           id: p.id,
@@ -636,29 +704,121 @@ export default function TournamentGame({
         });
       });
 
+      // Show tournament winner screen to BOTH players immediately
       setTournamentRankings(rankings);
       setShowTournamentWinner(true);
     } else {
-      // More rounds to go - only show for >2 player tournaments
-      if (totalPlayerCount > 2) {
-        toast({
-          title: didWin ? "Match Won! 🎉" : "Match Lost",
-          description: didWin
-            ? "You've advanced to the next round!"
-            : "Better luck next time!",
+      // More rounds to go - check if we need to create next round matches
+      const nextRoundNumber = currentRoundNumber + 1;
+
+      // Get all completed matches from current round
+      const { data: currentRoundMatches } = await supabase
+        .from('tournament_matches')
+        .select('*')
+        .eq('tournament_id', tournamentId)
+        .eq('round_number', currentRoundNumber);
+
+      const allCurrentRoundComplete = currentRoundMatches?.every(
+        m => m.status === 'completed'
+      );
+
+      // If all matches in this round are complete, create next round matches
+      if (allCurrentRoundComplete && currentRoundMatches && matchInfo.isPlayer1) {
+        // Get winners from this round
+        const roundWinners = currentRoundMatches.map(m => 
+          m.match_winner === 'player1' ? m.player1_id : m.player2_id
+        );
+
+        // Check if next round matches already exist
+        const { count: existingNextRoundCount } = await supabase
+          .from('tournament_matches')
+          .select('*', { count: 'exact', head: true })
+          .eq('tournament_id', tournamentId)
+          .eq('round_number', nextRoundNumber);
+
+        // Create next round matches if they don't exist
+        if ((existingNextRoundCount || 0) === 0 && roundWinners.length >= 2) {
+          const nextRoundMatches = [];
+          for (let i = 0; i < roundWinners.length; i += 2) {
+            if (i + 1 < roundWinners.length) {
+              nextRoundMatches.push({
+                tournament_id: tournamentId,
+                player1_id: roundWinners[i],
+                player2_id: roundWinners[i + 1],
+                round_number: nextRoundNumber,
+                status: 'pending',
+              });
+            }
+          }
+
+          if (nextRoundMatches.length > 0) {
+            await supabase
+              .from('tournament_matches')
+              .insert(nextRoundMatches);
+          }
+
+          // Reset ready state for all remaining players
+          await supabase
+            .from('tournament_players')
+            .update({ is_ready: false })
+            .in('id', roundWinners);
+        }
+      }
+
+      // Show appropriate message
+      if (didWin) {
+        setNotification({
+          type: "match_win",
+          message: "🎉 Match Won!",
+          subMessage: totalPlayerCount > 2 ? "Advancing to next round..." : "You are the champion!",
+        });
+      } else {
+        // Loser also sees the tournament results
+        setNotification({
+          type: "match_lose",
+          message: "Match Complete",
+          subMessage: "You've been eliminated from the tournament.",
         });
       }
-      // Reset ready state for next match
-      await supabase
-        .from('tournament_players')
-        .update({ is_ready: false })
-        .eq('id', currentPlayerId);
-      
-      setIsReady(false);
-      setCurrentMatch(null);
-      fetchData();
+
+      // After delay, show loser the final standings or advance winner
+      setTimeout(async () => {
+        setNotification(null);
+        
+        if (!didWin) {
+          // Build rankings for eliminated player to see final standings
+          const winnerPlayer = updatedAllPlayers.find(p => p.id === winnerId);
+          const loserPlayer = updatedAllPlayers.find(p => p.id === loserId);
+          const rankings = [
+            {
+              id: winnerId,
+              name: winnerPlayer?.player_name || "Winner",
+              position: 1,
+              isCurrentPlayer: winnerId === currentPlayerId,
+            },
+            {
+              id: loserId,
+              name: loserPlayer?.player_name || "Eliminated",
+              position: 2,
+              isCurrentPlayer: loserId === currentPlayerId,
+            },
+          ];
+          setTournamentRankings(rankings);
+          setShowTournamentWinner(true);
+        } else {
+          // Winner advances - reset for next match
+          await supabase
+            .from('tournament_players')
+            .update({ is_ready: false })
+            .eq('id', currentPlayerId);
+          
+          setIsReady(false);
+          setCurrentMatch(null);
+          fetchData();
+        }
+      }, ROUND_RESULT_DELAY);
     }
-  }, [currentMatch, matchInfo, currentPlayerId, allPlayers, totalPlayerCount, tournamentId, toast, fetchData]);
+  }, [currentMatch, matchInfo, currentPlayerId, allPlayers, totalPlayerCount, tournamentId, fetchData]);
 
   const handleReady = async () => {
     if (isReady) return;
@@ -1077,25 +1237,36 @@ export default function TournamentGame({
           )}
         </AnimatePresence>
 
-        {/* Turn Timer */}
-        {!isBiddingPhase && !winner && !notification && bidWinner === matchInfo?.mySymbol && (
-          <div className="flex justify-center mb-4">
-            <div className={`timer-ring ${timeLeft <= 5 ? "text-game-warning" : "text-foreground"}`}>
-              <Clock className="w-4 h-4 absolute top-0 right-0 opacity-50" />
-              {timeLeft}s
+        {/* Your Turn - Place Mark Indicator */}
+        {!isBiddingPhase && !winner && !notification && !isProcessing && bidWinner === matchInfo?.mySymbol && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="game-card mb-4 text-center bg-primary/10 ring-2 ring-primary"
+          >
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <div className={`timer-ring ${timeLeft <= 5 ? "text-game-warning" : "text-foreground"}`}>
+                <Clock className="w-4 h-4 absolute top-0 right-0 opacity-50" />
+                {timeLeft}s
+              </div>
             </div>
-          </div>
+            <h3 className="text-lg font-bold text-primary mb-1">🎮 Your Turn!</h3>
+            <p className="text-sm text-muted-foreground">
+              Tap any empty cell to place your {matchInfo?.mySymbol}
+            </p>
+          </motion.div>
         )}
 
         {/* Opponent's Turn Message */}
-        {!isBiddingPhase && !winner && !notification && bidWinner !== matchInfo?.mySymbol && (
+        {!isBiddingPhase && !winner && !notification && !isProcessing && bidWinner !== matchInfo?.mySymbol && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className="game-card mb-4 text-center"
           >
+            <p className="font-medium mb-1">⏳ {matchInfo?.opponent.player_name}'s Turn</p>
             <p className="text-muted-foreground text-sm">
-              ⏳ Waiting for {matchInfo?.opponent.player_name} to make a move...
+              Waiting for them to place their mark...
             </p>
           </motion.div>
         )}
