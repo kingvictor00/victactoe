@@ -71,7 +71,7 @@ const boardArrayToString = (board: Board): string => {
   return board.map(c => c === null ? '-' : c).join('');
 };
 
-type NotificationType = "bid_win" | "bid_lose" | "tie_coin_toss" | "round_win" | "round_lose" | "match_win" | "match_lose" | "waiting_opponent_bid" | "opponent_turn";
+type NotificationType = "bid_win" | "bid_lose" | "tie_coin_toss" | "round_win" | "round_lose" | "match_win" | "match_lose" | "opponent_turn";
 
 interface Notification {
   type: NotificationType;
@@ -99,6 +99,7 @@ export default function TournamentGame({
   const [tournamentRankings, setTournamentRankings] = useState<{ id: string; name: string; position: number; isCurrentPlayer: boolean }[]>([]);
   const [totalPlayerCount, setTotalPlayerCount] = useState(0);
   const hasSubmittedBidRef = useRef(false);
+  const isResolvingBidsRef = useRef(false);
   const { toast } = useToast();
 
   // Get current player
@@ -316,9 +317,25 @@ export default function TournamentGame({
   useEffect(() => {
     if (isBiddingPhase) {
       hasSubmittedBidRef.current = false;
+      isResolvingBidsRef.current = false;
       setPlayerBid(10);
     }
   }, [isBiddingPhase, currentMatch?.current_round]);
+
+  // Auto-resolve bids when both are present (reactive to realtime updates)
+  useEffect(() => {
+    if (!currentMatch || !matchInfo || !isBiddingPhase || isResolvingBidsRef.current || isProcessing) return;
+    
+    const p1Bid = currentMatch.player1_bid;
+    const p2Bid = currentMatch.player2_bid;
+    
+    // Both bids are in - resolve them
+    if (p1Bid !== null && p2Bid !== null) {
+      isResolvingBidsRef.current = true;
+      setNotification(null); // Clear any stale "waiting" notification
+      resolveBids(p1Bid, p2Bid);
+    }
+  }, [currentMatch?.player1_bid, currentMatch?.player2_bid, isBiddingPhase, matchInfo, isProcessing]);
 
   const checkWinner = useCallback((currentBoard: Board, p1Coins: number, p2Coins: number): { winner: Player | "tie" | null; line: number[] | null } => {
     for (const combo of WINNING_COMBINATIONS) {
@@ -354,10 +371,9 @@ export default function TournamentGame({
   }, [board, currentMatch, matchInfo]);
 
   const handleBidSubmit = useCallback(async (bidAmount: number) => {
-    if (!currentMatch || !matchInfo || isProcessing || hasSubmittedBidRef.current) return;
+    if (!currentMatch || !matchInfo || hasSubmittedBidRef.current) return;
 
     hasSubmittedBidRef.current = true;
-    setIsProcessing(true);
 
     const actualBid = Math.max(1, Math.min(bidAmount, matchInfo.myCoins));
 
@@ -371,39 +387,18 @@ export default function TournamentGame({
         .update(updateData)
         .eq('id', currentMatch.id);
 
-      // Check if opponent has already bid
-      const { data: updatedMatch } = await supabase
-        .from('tournament_matches')
-        .select('*')
-        .eq('id', currentMatch.id)
-        .single();
-
-      if (updatedMatch) {
-        const p1Bid = matchInfo.isPlayer1 ? actualBid : updatedMatch.player1_bid;
-        const p2Bid = matchInfo.isPlayer1 ? updatedMatch.player2_bid : actualBid;
-
-        if (p1Bid !== null && p2Bid !== null) {
-          // Both have bid - resolve the bidding phase
-          await resolveBids(p1Bid, p2Bid);
-        } else {
-          // Waiting for opponent
-          setNotification({
-            type: "waiting_opponent_bid",
-            message: "⏳ Bid Placed!",
-            subMessage: `You bid $${actualBid}. Waiting for ${matchInfo.opponent.player_name}...`,
-          });
-          setIsProcessing(false);
-        }
-      }
+      // The realtime subscription will detect when both bids are in
+      // and trigger resolveBids via the useEffect above
     } catch (error) {
       console.error("Error submitting bid:", error);
       hasSubmittedBidRef.current = false;
-      setIsProcessing(false);
     }
-  }, [currentMatch, matchInfo, isProcessing]);
+  }, [currentMatch, matchInfo]);
 
   const resolveBids = useCallback(async (p1Bid: number, p2Bid: number) => {
     if (!currentMatch || !matchInfo) return;
+
+    setIsProcessing(true);
 
     const isTie = p1Bid === p2Bid;
     let bidWinnerSymbol: Player;
@@ -413,8 +408,9 @@ export default function TournamentGame({
     } else if (p2Bid > p1Bid) {
       bidWinnerSymbol = "O";
     } else {
-      // Tie - coin toss
-      bidWinnerSymbol = Math.random() > 0.5 ? "X" : "O";
+      // Tie - coin toss (use deterministic seed from match id for consistency)
+      const seed = currentMatch.id.charCodeAt(0) + currentMatch.current_round;
+      bidWinnerSymbol = seed % 2 === 0 ? "X" : "O";
     }
 
     const newP1Coins = currentMatch.player1_coins - p1Bid;
@@ -969,9 +965,24 @@ export default function TournamentGame({
               {notification.subMessage && (
                 <p className="text-sm text-muted-foreground">{notification.subMessage}</p>
               )}
-              {notification.type === "waiting_opponent_bid" && (
-                <Loader2 className="w-5 h-5 mx-auto mt-2 animate-spin text-muted-foreground" />
-              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Waiting for Opponent Bid - Show based on server state */}
+        <AnimatePresence>
+          {isBiddingPhase && !winner && !notification && !isProcessing && matchInfo && hasSubmittedBidRef.current && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="game-card mb-4 text-center"
+            >
+              <h3 className="text-lg font-bold mb-1">⏳ Bid Placed!</h3>
+              <p className="text-sm text-muted-foreground">
+                Waiting for {matchInfo.opponent.player_name} to bid...
+              </p>
+              <Loader2 className="w-5 h-5 mx-auto mt-2 animate-spin text-muted-foreground" />
             </motion.div>
           )}
         </AnimatePresence>
