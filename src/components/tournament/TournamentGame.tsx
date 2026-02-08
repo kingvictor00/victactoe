@@ -60,6 +60,8 @@ const INITIAL_COINS = 100;
 const PHASE_TIME = 20; // 20 seconds for bidding and moves
 const BID_RESULT_DELAY = 3000; // 3 seconds to show bid results
 const ROUND_RESULT_DELAY = 3000; // 3 seconds to show round results
+const COIN_TOSS_ANIMATION_TIME = 2000; // 2 seconds for coin toss animation
+const OPPONENT_DISCONNECT_TIMEOUT = 10000; // 10 seconds to detect disconnect
 
 // Convert board string to array
 const boardStringToArray = (boardStr: string): Board => {
@@ -71,7 +73,7 @@ const boardArrayToString = (board: Board): string => {
   return board.map(c => c === null ? '-' : c).join('');
 };
 
-type NotificationType = "bid_win" | "bid_lose" | "tie_coin_toss" | "round_win" | "round_lose" | "match_win" | "match_lose" | "opponent_turn" | "your_turn" | "coin_toss_animation";
+type NotificationType = "bid_win" | "bid_lose" | "tie_coin_toss" | "round_win" | "round_lose" | "match_win" | "match_lose" | "opponent_turn" | "your_turn" | "coin_toss_animation" | "opponent_forfeit";
 
 interface Notification {
   type: NotificationType;
@@ -107,6 +109,8 @@ export default function TournamentGame({
   const [totalPlayerCount, setTotalPlayerCount] = useState(0);
   const hasSubmittedBidRef = useRef(false);
   const isResolvingBidsRef = useRef(false);
+  const coinTossTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastSeenBidResultRef = useRef<string | null>(null);
   const { toast } = useToast();
 
   // Get current player
@@ -262,6 +266,10 @@ export default function TournamentGame({
       clearInterval(pollInterval);
       supabase.removeChannel(playersChannel);
       supabase.removeChannel(matchChannel);
+      // Cleanup coin toss timeout
+      if (coinTossTimeoutRef.current) {
+        clearTimeout(coinTossTimeoutRef.current);
+      }
     };
   }, [tournamentId, currentPlayerId, fetchData]);
 
@@ -294,6 +302,37 @@ export default function TournamentGame({
 
     checkAndStartGame();
   }, [currentMatch, matchInfo, toast]);
+
+  // Detect opponent forfeit - when match_winner is set unexpectedly
+  const hasHandledForfeitRef = useRef(false);
+  useEffect(() => {
+    if (!currentMatch || !matchInfo || hasHandledForfeitRef.current || showTournamentWinner) return;
+    
+    // If match has a winner but we didn't trigger it, opponent forfeited
+    if (currentMatch.match_winner && currentMatch.status === 'completed') {
+      const winnerId = currentMatch.match_winner === "player1" ? currentMatch.player1_id : currentMatch.player2_id;
+      const didWin = winnerId === currentPlayerId;
+      
+      if (didWin && !isProcessing) {
+        hasHandledForfeitRef.current = true;
+        
+        setNotification({
+          type: "opponent_forfeit",
+          message: "🏃 Opponent Forfeited!",
+          subMessage: `${matchInfo.opponent.player_name} has left the game. You win!`,
+        });
+        
+        // After showing forfeit message, trigger match complete flow
+        setTimeout(() => {
+          setNotification(null);
+          handleMatchComplete(currentMatch.match_winner as "player1" | "player2");
+        }, ROUND_RESULT_DELAY);
+      } else if (!didWin) {
+        // We lost (we forfeited or were already going to results)
+        hasHandledForfeitRef.current = true;
+      }
+    }
+  }, [currentMatch?.match_winner, currentMatch?.status, matchInfo, currentPlayerId, isProcessing, showTournamentWinner]);
 
   // Timer effect
   useEffect(() => {
@@ -329,9 +368,61 @@ export default function TournamentGame({
     }
   }, [isBiddingPhase, currentMatch?.current_round]);
 
-  // Auto-resolve bids when both are present (reactive to realtime updates)
+  // Auto-resolve bids when both are present OR when bid result already exists from P1
   useEffect(() => {
-    if (!currentMatch || !matchInfo || !isBiddingPhase || isResolvingBidsRef.current || isProcessing) return;
+    if (!currentMatch || !matchInfo || isProcessing) return;
+    
+    // If we're showing coin toss animation and the result comes through, process it
+    if (notification?.type === "coin_toss_animation" && currentMatch.last_bid_result && !currentMatch.is_bidding_phase) {
+      // P1 has resolved the tie - P2 should show the result
+      const resultKey = `${currentMatch.id}-${currentMatch.current_round}-${JSON.stringify(currentMatch.last_bid_result)}`;
+      if (resultKey !== lastSeenBidResultRef.current) {
+        lastSeenBidResultRef.current = resultKey;
+        
+        // Clear any pending timeout
+        if (coinTossTimeoutRef.current) {
+          clearTimeout(coinTossTimeoutRef.current);
+          coinTossTimeoutRef.current = null;
+        }
+        
+        const bidResult = currentMatch.last_bid_result;
+        const didWin = bidResult.winner === matchInfo.mySymbol;
+        const myBidAmount = matchInfo.isPlayer1 ? bidResult.player1Bid : bidResult.player2Bid;
+        
+        setNotification({
+          type: "tie_coin_toss",
+          message: "🪙 Coin Toss Result!",
+          subMessage: `Both bid $${myBidAmount}. ${didWin ? "You" : matchInfo.opponent.player_name} won the toss!`,
+        });
+        
+        setTimeout(() => {
+          if (didWin) {
+            setNotification({
+              type: "your_turn",
+              message: "🎮 Your Turn!",
+              subMessage: "Tap any empty cell to place your mark",
+            });
+            setTimeout(() => {
+              setNotification(null);
+              setIsProcessing(false);
+            }, 1500);
+          } else {
+            setNotification({
+              type: "opponent_turn",
+              message: `⏳ ${matchInfo.opponent.player_name}'s Turn`,
+              subMessage: "Waiting for them to place their mark...",
+            });
+            setTimeout(() => {
+              setNotification(null);
+              setIsProcessing(false);
+            }, 1500);
+          }
+        }, COIN_TOSS_ANIMATION_TIME);
+      }
+      return;
+    }
+    
+    if (!isBiddingPhase || isResolvingBidsRef.current) return;
     
     const p1Bid = currentMatch.player1_bid;
     const p2Bid = currentMatch.player2_bid;
@@ -342,7 +433,7 @@ export default function TournamentGame({
       setNotification(null); // Clear any stale "waiting" notification
       resolveBids(p1Bid, p2Bid);
     }
-  }, [currentMatch?.player1_bid, currentMatch?.player2_bid, isBiddingPhase, matchInfo, isProcessing]);
+  }, [currentMatch?.player1_bid, currentMatch?.player2_bid, currentMatch?.last_bid_result, currentMatch?.is_bidding_phase, isBiddingPhase, matchInfo, isProcessing, notification?.type]);
 
   const checkWinner = useCallback((currentBoard: Board, p1Coins: number, p2Coins: number): { winner: Player | "tie" | null; line: number[] | null } => {
     for (const combo of WINNING_COMBINATIONS) {
@@ -417,19 +508,63 @@ export default function TournamentGame({
     } else {
       // Tie - fair coin toss using cryptographic random
       // Player1 determines the result and writes it to the database
-      // Player2 reads the result from the database
+      // Player2 waits for the result with a timeout fallback
       if (matchInfo.isPlayer1) {
         bidWinnerSymbol = generateFairCoinToss() ? "X" : "O";
-      } else {
-        // Non-player1 waits for the result from the database
-        // The result will come through realtime update
+        
+        // Show coin toss animation for P1 as well
         setNotification({
           type: "coin_toss_animation",
           message: "🪙 Tie! Coin Toss...",
           subMessage: "Flipping the coin...",
         });
+        
+        // P1 writes the result after brief animation
+        await new Promise(resolve => setTimeout(resolve, COIN_TOSS_ANIMATION_TIME));
+      } else {
+        // Non-player1 shows animation and waits for realtime OR timeout fallback
+        setNotification({
+          type: "coin_toss_animation",
+          message: "🪙 Tie! Coin Toss...",
+          subMessage: "Flipping the coin...",
+        });
+        
+        // Set a timeout fallback - if P1's result doesn't arrive, generate locally
+        coinTossTimeoutRef.current = setTimeout(() => {
+          // If we're still showing coin toss animation, P1's result didn't arrive
+          // Generate our own result as fallback (this ensures no freeze)
+          const fallbackWinner: Player = generateFairCoinToss() ? "X" : "O";
+          const didWin = fallbackWinner === matchInfo.mySymbol;
+          
+          setNotification({
+            type: "tie_coin_toss",
+            message: "🪙 Coin Toss Result!",
+            subMessage: `Both bid $${p2Bid}. ${didWin ? "You" : matchInfo.opponent.player_name} won the toss!`,
+          });
+          
+          setTimeout(() => {
+            if (didWin) {
+              setNotification({
+                type: "your_turn",
+                message: "🎮 Your Turn!",
+                subMessage: "Tap any empty cell to place your mark",
+              });
+            } else {
+              setNotification({
+                type: "opponent_turn", 
+                message: `⏳ ${matchInfo.opponent.player_name}'s Turn`,
+                subMessage: "Waiting for them to place their mark...",
+              });
+            }
+            setTimeout(() => {
+              setNotification(null);
+              setIsProcessing(false);
+            }, 1500);
+          }, COIN_TOSS_ANIMATION_TIME);
+        }, 5000); // 5 second timeout for P1's result
+        
         setIsProcessing(false);
-        return; // Exit and let realtime handle the update
+        return; // Exit and let realtime or timeout handle the update
       }
     }
 
@@ -845,8 +980,29 @@ export default function TournamentGame({
     setShowConfirmLeave(true);
   };
 
-  const handleConfirmLeave = () => {
+  const handleConfirmLeave = async () => {
     setShowConfirmLeave(false);
+    
+    // If in an active match, forfeit the match
+    if (currentMatch && currentMatch.status === 'playing' && matchInfo) {
+      const winnerStr = matchInfo.isPlayer1 ? "player2" : "player1";
+      
+      await supabase
+        .from('tournament_matches')
+        .update({
+          match_winner: winnerStr,
+          status: 'completed',
+          completed_at: new Date().toISOString(),
+        })
+        .eq('id', currentMatch.id);
+      
+      // Mark self as eliminated
+      await supabase
+        .from('tournament_players')
+        .update({ is_eliminated: true })
+        .eq('id', currentPlayerId);
+    }
+    
     onBack();
   };
 
