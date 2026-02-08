@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Copy, Check, Users, Trophy, Crown, Loader2 } from "lucide-react";
+import { ArrowLeft, Copy, Check, Users, Trophy, Crown, Loader2, Zap } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import FloatingBackground from "@/components/ui/FloatingBackground";
 import ConfirmLeaveDialog from "@/components/ui/ConfirmLeaveDialog";
 import { useToast } from "@/hooks/use-toast";
+import { createFirstRoundMatches, calculateByeCount } from "@/lib/tournament-utils";
 
 interface Player {
   id: string;
@@ -275,25 +276,22 @@ export default function TournamentLobby({
         const firstUpdateError = updateResults.find(r => r.error)?.error;
         if (firstUpdateError) throw firstUpdateError;
 
-        // Create matches for first round (pair players by seed position)
-        const matchesToCreate: Array<{
-          tournament_id: string;
-          player1_id: string;
-          player2_id: string;
-          round_number: number;
-          status: string;
-        }> = [];
+        // Convert to format expected by tournament utils
+        const playersWithSeeds = shuffledPlayers.map((p, idx) => ({
+          ...p,
+          seed_position: idx + 1,
+          is_eliminated: false,
+        }));
 
-        for (let i = 0; i < shuffledPlayers.length; i += 2) {
-          if (i + 1 < shuffledPlayers.length) {
-            matchesToCreate.push({
-              tournament_id: tournamentId,
-              player1_id: shuffledPlayers[i].id,
-              player2_id: shuffledPlayers[i + 1].id,
-              round_number: 1,
-              status: 'pending',
-            });
-          }
+        // Use BYE-aware match creation
+        const { matches: matchesToCreate, byePlayerIds } = createFirstRoundMatches(
+          tournamentId,
+          playersWithSeeds
+        );
+
+        const byeCount = calculateByeCount(activePlayers.length);
+        if (byeCount > 0) {
+          console.log(`Tournament has ${byeCount} BYE(s). BYE players:`, byePlayerIds);
         }
 
         if (matchesToCreate.length > 0) {

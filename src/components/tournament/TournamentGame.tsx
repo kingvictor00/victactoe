@@ -7,6 +7,14 @@ import ConfirmLeaveDialog from "@/components/ui/ConfirmLeaveDialog";
 import TournamentWinner from "./TournamentWinner";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
+import { useTournamentWatchdog } from "@/hooks/useTournamentWatchdog";
+import { 
+  createNextRoundMatches, 
+  calculateByeCount, 
+  getRemainingPlayers,
+  isTournamentComplete,
+  generateFairCoinToss,
+} from "@/lib/tournament-utils";
 
 type Player = "X" | "O";
 type CellValue = Player | null;
@@ -42,6 +50,7 @@ interface TournamentMatch {
   last_bid_result: { player1Bid: number; player2Bid: number; winner: Player } | null;
   phase_deadline: string | null;
   match_winner: string | null;
+  round_number: number;
 }
 
 interface TournamentGameProps {
@@ -61,7 +70,7 @@ const PHASE_TIME = 20; // 20 seconds for bidding and moves
 const BID_RESULT_DELAY = 3000; // 3 seconds to show bid results
 const ROUND_RESULT_DELAY = 3000; // 3 seconds to show round results
 const COIN_TOSS_ANIMATION_TIME = 2000; // 2 seconds for coin toss animation
-const OPPONENT_DISCONNECT_TIMEOUT = 10000; // 10 seconds to detect disconnect
+const COIN_TOSS_TIMEOUT = 5000; // 5 second timeout for P1's result
 
 // Convert board string to array
 const boardStringToArray = (boardStr: string): Board => {
@@ -73,20 +82,13 @@ const boardArrayToString = (board: Board): string => {
   return board.map(c => c === null ? '-' : c).join('');
 };
 
-type NotificationType = "bid_win" | "bid_lose" | "tie_coin_toss" | "round_win" | "round_lose" | "match_win" | "match_lose" | "opponent_turn" | "your_turn" | "coin_toss_animation" | "opponent_forfeit";
+type NotificationType = "bid_win" | "bid_lose" | "tie_coin_toss" | "round_win" | "round_lose" | "match_win" | "match_lose" | "opponent_turn" | "your_turn" | "coin_toss_animation" | "opponent_forfeit" | "bye_advancement";
 
 interface Notification {
   type: NotificationType;
   message: string;
   subMessage?: string;
 }
-
-// Generate a cryptographically fair random boolean using Web Crypto API
-const generateFairCoinToss = (): boolean => {
-  const array = new Uint32Array(1);
-  crypto.getRandomValues(array);
-  return array[0] % 2 === 0;
-};
 
 export default function TournamentGame({
   tournamentId,
@@ -107,10 +109,12 @@ export default function TournamentGame({
   const [showTournamentWinner, setShowTournamentWinner] = useState(false);
   const [tournamentRankings, setTournamentRankings] = useState<{ id: string; name: string; position: number; isCurrentPlayer: boolean }[]>([]);
   const [totalPlayerCount, setTotalPlayerCount] = useState(0);
+  const [hasByeAdvancement, setHasByeAdvancement] = useState(false);
   const hasSubmittedBidRef = useRef(false);
   const isResolvingBidsRef = useRef(false);
   const coinTossTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastSeenBidResultRef = useRef<string | null>(null);
+  const byeCheckDoneRef = useRef(false);
   const { toast } = useToast();
 
   // Get current player
@@ -435,6 +439,50 @@ export default function TournamentGame({
     }
   }, [currentMatch?.player1_bid, currentMatch?.player2_bid, currentMatch?.last_bid_result, currentMatch?.is_bidding_phase, isBiddingPhase, matchInfo, isProcessing, notification?.type]);
 
+  // BYE Detection - Check if player has a BYE for current round
+  useEffect(() => {
+    const checkForBye = async () => {
+      if (!tournamentId || !currentPlayerId || byeCheckDoneRef.current || currentMatch || isLoading) {
+        return;
+      }
+      
+      // Get all active matches for this tournament
+      const { data: allActiveMatches } = await supabase
+        .from('tournament_matches')
+        .select('*')
+        .eq('tournament_id', tournamentId)
+        .in('status', ['pending', 'playing']);
+      
+      if (!allActiveMatches || allActiveMatches.length === 0) {
+        return;
+      }
+      
+      // Check if player is in any active match
+      const playerMatch = allActiveMatches.find(
+        m => m.player1_id === currentPlayerId || m.player2_id === currentPlayerId
+      );
+      
+      if (!playerMatch) {
+        // Player has a BYE - show notification and wait for next round
+        byeCheckDoneRef.current = true;
+        setHasByeAdvancement(true);
+        
+        setNotification({
+          type: "bye_advancement",
+          message: "🎯 You Have a BYE!",
+          subMessage: "Waiting for other matches to complete. You'll advance automatically.",
+        });
+        
+        toast({
+          title: "BYE Round",
+          description: "You'll advance automatically when other matches finish.",
+        });
+      }
+    };
+    
+    checkForBye();
+  }, [tournamentId, currentPlayerId, currentMatch, isLoading, toast]);
+
   const checkWinner = useCallback((currentBoard: Board, p1Coins: number, p2Coins: number): { winner: Player | "tie" | null; line: number[] | null } => {
     for (const combo of WINNING_COMBINATIONS) {
       const [a, b, c] = combo;
@@ -492,6 +540,38 @@ export default function TournamentGame({
       hasSubmittedBidRef.current = false;
     }
   }, [currentMatch, matchInfo]);
+
+  // Watchdog hook for timeout failsafes - placed after handlers are defined
+  const handleForceBid = useCallback(() => {
+    if (!hasSubmittedBidRef.current && matchInfo) {
+      handleBidSubmit(1);
+    }
+  }, [matchInfo, handleBidSubmit]);
+  
+  const handleForceMove = useCallback(() => {
+    autoPlayMove();
+  }, [autoPlayMove]);
+  
+  const handleForceRefresh = useCallback(() => {
+    fetchData();
+  }, [fetchData]);
+
+  useTournamentWatchdog(
+    {
+      matchId: currentMatch?.id || null,
+      isPlayer1: matchInfo?.isPlayer1 || false,
+      isBiddingPhase,
+      hasSubmittedBid: hasSubmittedBidRef.current,
+      bidWinner: bidWinner || null,
+      mySymbol: matchInfo?.mySymbol || "X",
+      isProcessing,
+      winner,
+      enabled: gameStarted && !showTournamentWinner,
+    },
+    handleForceBid,
+    handleForceMove,
+    handleForceRefresh
+  );
 
   const resolveBids = useCallback(async (p1Bid: number, p2Bid: number) => {
     if (!currentMatch || !matchInfo) return;
@@ -776,26 +856,15 @@ export default function TournamentGame({
       .eq('tournament_id', tournamentId);
 
     const updatedAllPlayers = latestPlayers || allPlayers;
-    
-    // Count remaining non-eliminated players (excluding the one we just eliminated)
-    const remainingPlayers = updatedAllPlayers.filter(p => !p.is_eliminated && p.id !== loserId);
-
-    // Calculate total rounds needed
-    const totalRounds = Math.ceil(Math.log2(totalPlayerCount));
+    const remainingPlayersList = getRemainingPlayers(updatedAllPlayers.filter(p => p.id !== loserId));
     
     // Get current round number from the match
-    const { data: currentMatchData } = await supabase
-      .from('tournament_matches')
-      .select('round_number')
-      .eq('id', currentMatch.id)
-      .single();
-    
-    const currentRoundNumber = currentMatchData?.round_number || 1;
+    const currentRoundNumber = currentMatch.round_number || 1;
 
-    // Check if tournament is complete (only 1 winner remaining or 2-player tournament)
-    const isTournamentComplete = remainingPlayers.length <= 1 || totalPlayerCount === 2;
+    // Check if tournament is complete
+    const tournamentComplete = remainingPlayersList.length <= 1 || totalPlayerCount === 2;
 
-    if (isTournamentComplete) {
+    if (tournamentComplete) {
       // Tournament complete! Update status
       await supabase
         .from('tournaments')
@@ -844,9 +913,7 @@ export default function TournamentGame({
       setShowTournamentWinner(true);
     } else {
       // More rounds to go - check if we need to create next round matches
-      const nextRoundNumber = currentRoundNumber + 1;
-
-      // Get all completed matches from current round
+      // Get all matches from current round
       const { data: currentRoundMatches } = await supabase
         .from('tournament_matches')
         .select('*')
@@ -857,46 +924,29 @@ export default function TournamentGame({
         m => m.status === 'completed'
       );
 
+      // Calculate BYE players for this round (players who didn't have a match)
+      const playersInCurrentRoundMatches = new Set<string>();
+      currentRoundMatches?.forEach(m => {
+        playersInCurrentRoundMatches.add(m.player1_id);
+        playersInCurrentRoundMatches.add(m.player2_id);
+      });
+      
+      const byePlayerIds = remainingPlayersList
+        .filter(p => !playersInCurrentRoundMatches.has(p.id))
+        .map(p => p.id);
+
       // If all matches in this round are complete, create next round matches
+      // Only player1 (of any completed match) creates to avoid duplicates
       if (allCurrentRoundComplete && currentRoundMatches && matchInfo.isPlayer1) {
-        // Get winners from this round
-        const roundWinners = currentRoundMatches.map(m => 
-          m.match_winner === 'player1' ? m.player1_id : m.player2_id
+        const matchesCreated = await createNextRoundMatches(
+          tournamentId,
+          currentRoundNumber,
+          currentRoundMatches as any,
+          byePlayerIds
         );
-
-        // Check if next round matches already exist
-        const { count: existingNextRoundCount } = await supabase
-          .from('tournament_matches')
-          .select('*', { count: 'exact', head: true })
-          .eq('tournament_id', tournamentId)
-          .eq('round_number', nextRoundNumber);
-
-        // Create next round matches if they don't exist
-        if ((existingNextRoundCount || 0) === 0 && roundWinners.length >= 2) {
-          const nextRoundMatches = [];
-          for (let i = 0; i < roundWinners.length; i += 2) {
-            if (i + 1 < roundWinners.length) {
-              nextRoundMatches.push({
-                tournament_id: tournamentId,
-                player1_id: roundWinners[i],
-                player2_id: roundWinners[i + 1],
-                round_number: nextRoundNumber,
-                status: 'pending',
-              });
-            }
-          }
-
-          if (nextRoundMatches.length > 0) {
-            await supabase
-              .from('tournament_matches')
-              .insert(nextRoundMatches);
-          }
-
-          // Reset ready state for all remaining players
-          await supabase
-            .from('tournament_players')
-            .update({ is_ready: false })
-            .in('id', roundWinners);
+        
+        if (matchesCreated) {
+          console.log(`Created next round matches for round ${currentRoundNumber + 1}`);
         }
       }
 
@@ -949,6 +999,7 @@ export default function TournamentGame({
           
           setIsReady(false);
           setCurrentMatch(null);
+          byeCheckDoneRef.current = false; // Reset BYE check for next round
           fetchData();
         }
       }, ROUND_RESULT_DELAY);
