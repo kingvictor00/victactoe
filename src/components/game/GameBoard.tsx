@@ -520,59 +520,43 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
   const quickBids = [5, 10, 25, 50];
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-6">
-      <div className="max-w-md mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <button 
-            onClick={handleBackClick}
-            className="p-2 rounded-xl bg-card hover:bg-muted transition-colors"
-          >
-            <Home className="w-5 h-5" />
-          </button>
-          <h1 className="text-xl font-bold">TicTacToe</h1>
-          <button 
-            onClick={resetGame}
-            className="p-2 rounded-xl bg-card hover:bg-muted transition-colors"
-          >
-            <RotateCcw className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Score Display */}
-        <div className="game-card mb-4">
-          <div className="flex justify-between items-center text-sm">
-            <span className="font-medium">Round {round} • Best of 3</span>
-            <div className="flex items-center gap-2">
-              <span className="text-game-x font-bold">{score.player}</span>
-              <span className="text-muted-foreground">-</span>
-              <span className="text-game-o font-bold">{score.computer}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Players Info */}
-        <div className="flex justify-between items-center mb-6 gap-4">
-          <div className={`game-card flex-1 ${currentBidder === "X" ? "ring-2 ring-primary" : ""}`}>
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                <span className="text-game-x font-bold">X</span>
+    <div className="h-[100dvh] bg-background flex flex-col overflow-hidden">
+      <div className="max-w-md mx-auto w-full flex flex-col h-full px-4 py-3">
+        {/* Top Bar: Players + Score */}
+        <div className="flex items-center gap-3 mb-2">
+          {/* Player X (You) */}
+          <div className={`flex-1 rounded-xl p-2.5 bg-card transition-all ${currentBidder === "X" ? "ring-2 ring-primary" : ""}`} style={{ boxShadow: 'var(--shadow-card)' }}>
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center">
+                <span className="text-game-x font-bold text-sm">X</span>
               </div>
-              <span className="font-medium text-sm">You</span>
+              <span className="font-medium text-xs">You</span>
             </div>
-            <div className="coin-badge">
-              <Coins className="w-4 h-4" />
+            <div className="coin-badge text-xs">
+              <Coins className="w-3 h-3" />
               ${playerCoins}
             </div>
           </div>
-          
-          <div className={`game-card flex-1 ${currentBidder === "O" ? "ring-2 ring-secondary" : ""}`}>
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-8 h-8 rounded-full bg-secondary/10 flex items-center justify-center">
-                <span className="text-game-o font-bold">O</span>
+
+          {/* Center: Round + Score */}
+          <div className="text-center shrink-0">
+            <div className="text-xs text-muted-foreground font-medium">Round {round}</div>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <span className="text-game-x font-bold text-lg">{score.player}</span>
+              <span className="text-muted-foreground text-sm">-</span>
+              <span className="text-game-o font-bold text-lg">{score.computer}</span>
+            </div>
+            <div className="text-[10px] text-muted-foreground">Best of 3</div>
+          </div>
+
+          {/* Player O (Computer) */}
+          <div className={`flex-1 rounded-xl p-2.5 bg-card transition-all ${currentBidder === "O" ? "ring-2 ring-secondary" : ""}`} style={{ boxShadow: 'var(--shadow-card)' }}>
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-7 h-7 rounded-full bg-secondary/10 flex items-center justify-center">
+                <span className="text-game-o font-bold text-sm">O</span>
               </div>
-              <span className="font-medium text-sm">Computer</span>
-              <span className={`text-xs px-2 py-0.5 rounded-full ${
+              <span className="font-medium text-xs">CPU</span>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
                 difficulty === "easy" ? "bg-green-500/20 text-green-600" :
                 difficulty === "medium" ? "bg-amber-500/20 text-amber-600" :
                 "bg-red-500/20 text-red-600"
@@ -580,216 +564,188 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
                 {difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}
               </span>
             </div>
-            <div className="coin-badge">
-              <Coins className="w-4 h-4" />
+            <div className="coin-badge text-xs">
+              <Coins className="w-3 h-3" />
               ${computerCoins}
             </div>
             {isComputerThinking && (
-              <div className="flex items-center gap-2 mt-2">
-                <div className="flex gap-1">
-                  <div className="w-2 h-2 rounded-full bg-secondary animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <div className="w-2 h-2 rounded-full bg-secondary animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <div className="w-2 h-2 rounded-full bg-secondary animate-bounce" style={{ animationDelay: '300ms' }} />
+              <div className="flex items-center gap-1 mt-1">
+                <div className="flex gap-0.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-secondary animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <div className="w-1.5 h-1.5 rounded-full bg-secondary animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <div className="w-1.5 h-1.5 rounded-full bg-secondary animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
-                <span className="text-xs text-muted-foreground">Thinking...</span>
+                <span className="text-[10px] text-muted-foreground">Thinking</span>
               </div>
             )}
           </div>
         </div>
 
-        {/* Notification Overlay */}
-        <AnimatePresence>
-          {notification && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="game-card mb-4 text-center"
-            >
-              {coinTossAnimation && (
-                <div className="mb-3">
-                  <motion.div
-                    animate={{ 
-                      rotateY: [0, 180, 360, 540, 720],
-                      scale: [1, 1.2, 1, 1.2, 1]
-                    }}
-                    transition={{ 
-                      duration: 2,
-                      repeat: Infinity,
-                      ease: "easeInOut"
-                    }}
-                    className="w-16 h-16 mx-auto rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-2xl shadow-lg"
-                  >
-                    🪙
-                  </motion.div>
-                </div>
-              )}
-              <h3 className="text-lg font-bold mb-1">{notification.message}</h3>
-              {notification.subMessage && (
-                <p className="text-sm text-muted-foreground">{notification.subMessage}</p>
-              )}
-              {notification.type === "bankruptcy" && (
-                <div className="mt-2">
-                  <Loader2 className="w-5 h-5 mx-auto animate-spin text-muted-foreground" />
-                </div>
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Inline Bidding Section */}
-        <AnimatePresence mode="wait">
-          {isBiddingPhase && !winner && !notification && !isProcessingBid && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="game-card mb-4"
-            >
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent to-amber-500 flex items-center justify-center">
-                    <Coins className="w-5 h-5 text-foreground" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-sm">Place Your Bid</h3>
-                    <p className="text-xs text-muted-foreground">Higher bid wins the turn</p>
-                  </div>
-                </div>
-                <div className={`timer-ring ${bidTimeLeft <= 5 ? "text-game-warning" : "text-foreground"}`}>
-                  <Clock className="w-3 h-3 absolute top-0 right-0 opacity-50" />
-                  {bidTimeLeft}s
-                </div>
-              </div>
-
-              {/* Quick Bid Buttons */}
-              <div className="flex gap-2 justify-center mb-3">
-                {quickBids.map((amount) => (
-                  <button
-                    key={amount}
-                    onClick={() => setPlayerBid(Math.min(amount, playerCoins))}
-                    disabled={amount > playerCoins}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${
-                      playerBid === amount 
-                        ? "bg-primary text-primary-foreground" 
-                        : "bg-muted hover:bg-muted/80"
-                    } ${amount > playerCoins ? "opacity-50 cursor-not-allowed" : ""}`}
-                  >
-                    ${amount}
-                  </button>
-                ))}
-              </div>
-
-              {/* Bid Slider */}
-              <div className="mb-3">
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="text-muted-foreground">$1</span>
-                  <span className="font-bold text-lg">${playerBid}</span>
-                  <span className="text-muted-foreground">${playerCoins}</span>
-                </div>
-                <Slider
-                  value={[playerBid]}
-                  onValueChange={(value) => setPlayerBid(value[0])}
-                  min={1}
-                  max={playerCoins}
-                  step={1}
-                  className="w-full"
-                />
-              </div>
-
-              <button
-                onClick={() => handleBidSubmit(playerBid)}
-                className="btn-game-primary w-full flex items-center justify-center gap-2 py-3"
+        {/* Middle: Board + Overlays (flex-1 to fill remaining space) */}
+        <div className="flex-1 flex flex-col items-center justify-center min-h-0">
+          {/* Notification Overlay */}
+          <AnimatePresence>
+            {notification && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className="w-full rounded-2xl bg-card p-4 text-center mb-3"
+                style={{ boxShadow: 'var(--shadow-card)' }}
               >
-                Confirm Bid
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
+                {coinTossAnimation && (
+                  <div className="mb-2">
+                    <motion.div
+                      animate={{ rotateY: [0, 180, 360, 540, 720], scale: [1, 1.2, 1, 1.2, 1] }}
+                      transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                      className="w-12 h-12 mx-auto rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-xl shadow-lg"
+                    >
+                      🪙
+                    </motion.div>
+                  </div>
+                )}
+                <h3 className="text-base font-bold mb-0.5">{notification.message}</h3>
+                {notification.subMessage && (
+                  <p className="text-xs text-muted-foreground">{notification.subMessage}</p>
+                )}
+                {notification.type === "bankruptcy" && (
+                  <Loader2 className="w-4 h-4 mx-auto mt-1.5 animate-spin text-muted-foreground" />
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-        {/* Last Bid Result (only when not showing notification) */}
-        <AnimatePresence>
-          {lastBidResult && !isBiddingPhase && !notification && (
-            <motion.div 
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className="game-card mb-4 text-center text-sm"
-            >
-              <span className="text-muted-foreground">
-                You bid <span className="text-game-x font-bold">${lastBidResult.playerBid}</span> vs 
-                <span className="text-game-o font-bold"> ${lastBidResult.computerBid}</span>
-              </span>
-              <span className="block font-medium mt-1">
-                {lastBidResult.winner === "X" ? "🎯 You win the bid!" : "💻 Computer wins the bid"}
-              </span>
-            </motion.div>
-          )}
-        </AnimatePresence>
+          {/* Inline Bidding Section */}
+          <AnimatePresence mode="wait">
+            {isBiddingPhase && !winner && !notification && !isProcessingBid && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="w-full rounded-2xl bg-card p-4 mb-3"
+                style={{ boxShadow: 'var(--shadow-card)' }}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-accent to-amber-500 flex items-center justify-center">
+                      <Coins className="w-4 h-4 text-foreground" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-xs">Place Your Bid</h3>
+                      <p className="text-[10px] text-muted-foreground">Higher bid wins the turn</p>
+                    </div>
+                  </div>
+                  <div className={`timer-ring w-10 h-10 text-sm ${bidTimeLeft <= 5 ? "text-game-warning" : "text-foreground"}`}>
+                    <Clock className="w-2.5 h-2.5 absolute top-0 right-0 opacity-50" />
+                    {bidTimeLeft}s
+                  </div>
+                </div>
+                <div className="flex gap-1.5 justify-center mb-2">
+                  {quickBids.map((amount) => (
+                    <button
+                      key={amount}
+                      onClick={() => setPlayerBid(Math.min(amount, playerCoins))}
+                      disabled={amount > playerCoins}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                        playerBid === amount ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80"
+                      } ${amount > playerCoins ? "opacity-50 cursor-not-allowed" : ""}`}
+                    >
+                      ${amount}
+                    </button>
+                  ))}
+                </div>
+                <div className="mb-2">
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-muted-foreground">$1</span>
+                    <span className="font-bold text-base">${playerBid}</span>
+                    <span className="text-muted-foreground">${playerCoins}</span>
+                  </div>
+                  <Slider value={[playerBid]} onValueChange={(v) => setPlayerBid(v[0])} min={1} max={playerCoins} step={1} className="w-full" />
+                </div>
+                <button onClick={() => handleBidSubmit(playerBid)} className="btn-game-primary w-full flex items-center justify-center gap-2 py-2.5 text-sm">
+                  Confirm Bid <ArrowRight className="w-4 h-4" />
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-        {/* Timer */}
-        {currentBidder === "X" && !winner && !isBiddingPhase && !notification && (
-          <div className="flex justify-center mb-4">
-            <div className={`timer-ring ${timeLeft <= 5 ? "text-game-warning" : "text-foreground"}`}>
-              <Clock className="w-4 h-4 absolute top-0 right-0 opacity-50" />
-              {timeLeft}s
+          {/* Last Bid Result */}
+          <AnimatePresence>
+            {lastBidResult && !isBiddingPhase && !notification && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full rounded-xl bg-card p-2.5 text-center text-xs mb-2" style={{ boxShadow: 'var(--shadow-card)' }}>
+                <span className="text-muted-foreground">
+                  You bid <span className="text-game-x font-bold">${lastBidResult.playerBid}</span> vs <span className="text-game-o font-bold">${lastBidResult.computerBid}</span>
+                </span>
+                <span className="block font-medium mt-0.5">
+                  {lastBidResult.winner === "X" ? "🎯 You win the bid!" : "💻 Computer wins the bid"}
+                </span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Timer for your turn */}
+          {currentBidder === "X" && !winner && !isBiddingPhase && !notification && (
+            <div className="flex justify-center mb-2">
+              <div className={`timer-ring w-10 h-10 text-sm ${timeLeft <= 5 ? "text-game-warning" : "text-foreground"}`}>
+                <Clock className="w-3 h-3 absolute top-0 right-0 opacity-50" />
+                {timeLeft}s
+              </div>
+            </div>
+          )}
+
+          {/* Game Board */}
+          <div className="w-full max-w-[min(100%,60vh)] aspect-square rounded-2xl bg-card p-3" style={{ boxShadow: 'var(--shadow-card)' }}>
+            <div className="grid grid-cols-3 gap-2.5 h-full">
+              {board.map((cell, index) => (
+                <motion.button
+                  key={index}
+                  className={getCellClass(index)}
+                  onClick={() => currentBidder === "X" && makeMove(index)}
+                  disabled={cell !== null || currentBidder !== "X" || !!winner || isBiddingPhase || !!notification}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <AnimatePresence mode="wait">
+                    {cell && (
+                      <motion.span key={cell} initial={{ scale: 0, rotate: -180 }} animate={{ scale: 1, rotate: 0 }} className="animate-pop-in">
+                        {cell}
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </motion.button>
+              ))}
             </div>
           </div>
-        )}
 
-        {/* Game Board */}
-        <div className="game-card mb-6">
-          <div className="grid grid-cols-3 gap-3">
-            {board.map((cell, index) => (
-              <motion.button
-                key={index}
-                className={getCellClass(index)}
-                onClick={() => currentBidder === "X" && makeMove(index)}
-                disabled={cell !== null || currentBidder !== "X" || !!winner || isBiddingPhase || !!notification}
-                whileTap={{ scale: 0.95 }}
-              >
-                <AnimatePresence mode="wait">
-                  {cell && (
-                    <motion.span
-                      key={cell}
-                      initial={{ scale: 0, rotate: -180 }}
-                      animate={{ scale: 1, rotate: 0 }}
-                      className="animate-pop-in"
-                    >
-                      {cell}
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-              </motion.button>
-            ))}
-          </div>
+          {/* Winner Announcement */}
+          <AnimatePresence>
+            {winner && !gameOver && !notification && (
+              <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="w-full rounded-2xl bg-card p-4 text-center mt-3" style={{ boxShadow: 'var(--shadow-card)' }}>
+                <Trophy className="w-8 h-8 mx-auto mb-1.5 text-game-coin" />
+                <h3 className="text-lg font-bold mb-0.5">
+                  {winner === "X" ? "You Win This Round! 🎉" : winner === "O" ? "Computer Wins 💻" : "It's a Tie! 🤝"}
+                </h3>
+                <p className="text-xs text-muted-foreground">Next round starting...</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Auto-play warning */}
+          {autoPlays > 0 && autoPlays < MAX_AUTO_PLAYS && (
+            <div className="text-center text-xs text-game-warning mt-2">
+              ⚠️ Auto-played {autoPlays}/{MAX_AUTO_PLAYS} times
+            </div>
+          )}
         </div>
 
-        {/* Winner Announcement */}
-        <AnimatePresence>
-          {winner && !gameOver && !notification && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0 }}
-              className="game-card text-center"
-            >
-              <Trophy className="w-10 h-10 mx-auto mb-2 text-game-coin" />
-              <h3 className="text-xl font-bold mb-1">
-                {winner === "X" ? "You Win This Round! 🎉" : winner === "O" ? "Computer Wins 💻" : "It's a Tie! 🤝"}
-              </h3>
-              <p className="text-sm text-muted-foreground">Next round starting...</p>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Auto-play warning */}
-        {autoPlays > 0 && autoPlays < MAX_AUTO_PLAYS && (
-          <div className="text-center text-sm text-game-warning mt-4">
-            ⚠️ Auto-played {autoPlays}/{MAX_AUTO_PLAYS} times
-          </div>
-        )}
+        {/* Bottom Bar */}
+        <div className="flex items-center justify-center gap-3 pt-2 pb-1">
+          <button onClick={handleBackClick} className="flex-1 py-3 rounded-xl bg-card hover:bg-muted transition-colors font-semibold text-sm flex items-center justify-center gap-2" style={{ boxShadow: 'var(--shadow-card)' }}>
+            <Home className="w-4 h-4" /> Back
+          </button>
+          <button onClick={resetGame} className="flex-1 py-3 rounded-xl bg-card hover:bg-muted transition-colors font-semibold text-sm flex items-center justify-center gap-2" style={{ boxShadow: 'var(--shadow-card)' }}>
+            <RotateCcw className="w-4 h-4" /> Reset
+          </button>
+        </div>
       </div>
 
       {/* Game Over Modal */}
