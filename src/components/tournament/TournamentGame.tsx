@@ -1234,267 +1234,227 @@ export default function TournamentGame({
 
   // Game board with bidding
   return (
-    <div className="min-h-screen bg-background p-4 md:p-6">
-      <div className="max-w-md mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <button
-            onClick={handleBackClick}
-            className="p-2 rounded-xl bg-card hover:bg-muted transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <h1 className="text-lg font-bold">{tournamentName}</h1>
-          <div className="w-9" /> {/* Spacer */}
-        </div>
-
-        {/* Score Display */}
-        <div className="game-card mb-4">
-          <div className="flex justify-between items-center text-sm">
-            <span className="font-medium">Round {currentMatch.current_round} • Best of 3</span>
-            <div className="flex items-center gap-2">
-              <span className="text-game-x font-bold">{matchInfo?.isPlayer1 ? currentMatch.player1_score : currentMatch.player2_score}</span>
-              <span className="text-muted-foreground">-</span>
-              <span className="text-game-o font-bold">{matchInfo?.isPlayer1 ? currentMatch.player2_score : currentMatch.player1_score}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Players Info */}
-        <div className="flex justify-between items-center mb-4 gap-4">
-          <div className={`game-card flex-1 ${bidWinner === "X" ? "ring-2 ring-primary" : ""}`}>
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                <span className="text-game-x font-bold">X</span>
+    <div className="h-[100dvh] bg-background flex flex-col overflow-hidden">
+      <div className="max-w-md mx-auto w-full flex flex-col h-full px-4 py-3">
+        {/* Top Bar: Players + Score */}
+        <div className="flex items-center gap-3 mb-2">
+          {/* Player X */}
+          <div className={`flex-1 rounded-xl p-2.5 bg-card transition-all ${bidWinner === "X" ? "ring-2 ring-primary" : ""}`} style={{ boxShadow: 'var(--shadow-card)' }}>
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center">
+                <span className="text-game-x font-bold text-sm">X</span>
               </div>
               <span className="font-medium text-xs truncate">{matchInfo?.player1.player_name}</span>
-              {matchInfo?.isPlayer1 && <span className="text-xs text-primary">(You)</span>}
+              {matchInfo?.isPlayer1 && <span className="text-[10px] text-primary">(You)</span>}
             </div>
-            <div className="coin-badge">
-              <Coins className="w-4 h-4" />
+            <div className="coin-badge text-xs">
+              <Coins className="w-3 h-3" />
               ${currentMatch.player1_coins}
             </div>
           </div>
 
-          <div className={`game-card flex-1 ${bidWinner === "O" ? "ring-2 ring-secondary" : ""}`}>
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-8 h-8 rounded-full bg-secondary/10 flex items-center justify-center">
-                <span className="text-game-o font-bold">O</span>
+          {/* Center: Round + Score */}
+          <div className="text-center shrink-0">
+            <div className="text-xs text-muted-foreground font-medium">Round {currentMatch.current_round}</div>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <span className="text-game-x font-bold text-lg">{matchInfo?.isPlayer1 ? currentMatch.player1_score : currentMatch.player2_score}</span>
+              <span className="text-muted-foreground text-sm">-</span>
+              <span className="text-game-o font-bold text-lg">{matchInfo?.isPlayer1 ? currentMatch.player2_score : currentMatch.player1_score}</span>
+            </div>
+            <div className="text-[10px] text-muted-foreground">Best of 3</div>
+          </div>
+
+          {/* Player O */}
+          <div className={`flex-1 rounded-xl p-2.5 bg-card transition-all ${bidWinner === "O" ? "ring-2 ring-secondary" : ""}`} style={{ boxShadow: 'var(--shadow-card)' }}>
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-7 h-7 rounded-full bg-secondary/10 flex items-center justify-center">
+                <span className="text-game-o font-bold text-sm">O</span>
               </div>
               <span className="font-medium text-xs truncate">{matchInfo?.player2.player_name}</span>
-              {!matchInfo?.isPlayer1 && <span className="text-xs text-primary">(You)</span>}
+              {!matchInfo?.isPlayer1 && <span className="text-[10px] text-primary">(You)</span>}
             </div>
-            <div className="coin-badge">
-              <Coins className="w-4 h-4" />
+            <div className="coin-badge text-xs">
+              <Coins className="w-3 h-3" />
               ${currentMatch.player2_coins}
             </div>
           </div>
         </div>
 
-        {/* Notification Overlay */}
-        <AnimatePresence>
-          {notification && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="game-card mb-4 text-center"
-            >
-              <h3 className="text-lg font-bold mb-1">{notification.message}</h3>
-              {notification.subMessage && (
-                <p className="text-sm text-muted-foreground">{notification.subMessage}</p>
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Middle: Board + Overlays (flex-1 fills remaining space) */}
+        <div className="flex-1 flex flex-col items-center justify-center min-h-0">
+          {/* Notification Overlay */}
+          <AnimatePresence>
+            {notification && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className="w-full rounded-2xl bg-card p-4 text-center mb-3"
+                style={{ boxShadow: 'var(--shadow-card)' }}
+              >
+                <h3 className="text-base font-bold mb-0.5">{notification.message}</h3>
+                {notification.subMessage && (
+                  <p className="text-xs text-muted-foreground">{notification.subMessage}</p>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-        {/* Waiting for Opponent Bid - Show based on server state */}
-        <AnimatePresence>
-          {isBiddingPhase && !winner && !notification && !isProcessing && matchInfo && hasSubmittedBidRef.current && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="game-card mb-4 text-center"
-            >
-              <h3 className="text-lg font-bold mb-1">⏳ Bid Placed!</h3>
-              <p className="text-sm text-muted-foreground">
-                Waiting for {matchInfo.opponent.player_name} to bid...
-              </p>
-              <Loader2 className="w-5 h-5 mx-auto mt-2 animate-spin text-muted-foreground" />
-            </motion.div>
-          )}
-        </AnimatePresence>
+          {/* Waiting for Opponent Bid */}
+          <AnimatePresence>
+            {isBiddingPhase && !winner && !notification && !isProcessing && matchInfo && hasSubmittedBidRef.current && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className="w-full rounded-2xl bg-card p-4 text-center mb-3"
+                style={{ boxShadow: 'var(--shadow-card)' }}
+              >
+                <h3 className="text-base font-bold mb-0.5">⏳ Bid Placed!</h3>
+                <p className="text-xs text-muted-foreground">
+                  Waiting for {matchInfo.opponent.player_name} to bid...
+                </p>
+                <Loader2 className="w-4 h-4 mx-auto mt-1.5 animate-spin text-muted-foreground" />
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-        {/* Bidding Phase UI */}
-        <AnimatePresence mode="wait">
-          {isBiddingPhase && !winner && !notification && !isProcessing && matchInfo && !hasSubmittedBidRef.current && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="game-card mb-4"
-            >
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent to-amber-500 flex items-center justify-center">
-                    <Coins className="w-5 h-5 text-foreground" />
+          {/* Bidding Phase UI */}
+          <AnimatePresence mode="wait">
+            {isBiddingPhase && !winner && !notification && !isProcessing && matchInfo && !hasSubmittedBidRef.current && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="w-full rounded-2xl bg-card p-4 mb-3"
+                style={{ boxShadow: 'var(--shadow-card)' }}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-accent to-amber-500 flex items-center justify-center">
+                      <Coins className="w-4 h-4 text-foreground" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-xs">Place Your Bid</h3>
+                      <p className="text-[10px] text-muted-foreground">Higher bid wins the turn</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-bold text-sm">Place Your Bid</h3>
-                    <p className="text-xs text-muted-foreground">Higher bid wins the turn</p>
+                  <div className={`timer-ring w-10 h-10 text-sm ${timeLeft <= 5 ? "text-game-warning" : "text-foreground"}`}>
+                    <Clock className="w-2.5 h-2.5 absolute top-0 right-0 opacity-50" />
+                    {timeLeft}s
                   </div>
                 </div>
-                <div className={`timer-ring ${timeLeft <= 5 ? "text-game-warning" : "text-foreground"}`}>
-                  <Clock className="w-3 h-3 absolute top-0 right-0 opacity-50" />
+                <div className="flex gap-1.5 justify-center mb-2">
+                  {quickBids.map((amount) => (
+                    <button
+                      key={amount}
+                      onClick={() => setPlayerBid(Math.min(amount, matchInfo.myCoins))}
+                      disabled={amount > matchInfo.myCoins}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${playerBid === amount ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80"} ${amount > matchInfo.myCoins ? "opacity-50 cursor-not-allowed" : ""}`}
+                    >
+                      ${amount}
+                    </button>
+                  ))}
+                </div>
+                <div className="mb-2">
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-muted-foreground">$1</span>
+                    <span className="font-bold text-base">${playerBid}</span>
+                    <span className="text-muted-foreground">${matchInfo.myCoins}</span>
+                  </div>
+                  <Slider value={[playerBid]} onValueChange={(v) => setPlayerBid(v[0])} min={1} max={matchInfo.myCoins} step={1} className="w-full" />
+                </div>
+                <button onClick={() => handleBidSubmit(playerBid)} className="btn-game-primary w-full flex items-center justify-center gap-2 py-2.5 text-sm">
+                  Confirm Bid <ArrowRight className="w-4 h-4" />
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Last Bid Result */}
+          <AnimatePresence>
+            {currentMatch.last_bid_result && !isBiddingPhase && !notification && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full rounded-xl bg-card p-2.5 text-center text-xs mb-2" style={{ boxShadow: 'var(--shadow-card)' }}>
+                <span className="text-muted-foreground">
+                  You bid <span className="text-game-x font-bold">${matchInfo?.isPlayer1 ? currentMatch.last_bid_result.player1Bid : currentMatch.last_bid_result.player2Bid}</span> vs
+                  <span className="text-game-o font-bold"> ${matchInfo?.isPlayer1 ? currentMatch.last_bid_result.player2Bid : currentMatch.last_bid_result.player1Bid}</span>
+                </span>
+                <span className="block font-medium mt-0.5">
+                  {currentMatch.last_bid_result.winner === matchInfo?.mySymbol ? "🎯 You won the bid!" : `💻 ${matchInfo?.opponent.player_name} won the bid`}
+                </span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Your Turn Indicator */}
+          {!isBiddingPhase && !winner && !notification && !isProcessing && bidWinner === matchInfo?.mySymbol && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="w-full rounded-xl bg-primary/10 ring-2 ring-primary p-3 text-center mb-2"
+            >
+              <div className="flex items-center justify-center gap-2 mb-1">
+                <div className={`timer-ring w-9 h-9 text-sm ${timeLeft <= 5 ? "text-game-warning" : "text-foreground"}`}>
+                  <Clock className="w-2.5 h-2.5 absolute top-0 right-0 opacity-50" />
                   {timeLeft}s
                 </div>
               </div>
-
-              {/* Quick Bid Buttons */}
-              <div className="flex gap-2 justify-center mb-3">
-                {quickBids.map((amount) => (
-                  <button
-                    key={amount}
-                    onClick={() => setPlayerBid(Math.min(amount, matchInfo.myCoins))}
-                    disabled={amount > matchInfo.myCoins}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${playerBid === amount
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted hover:bg-muted/80"
-                      } ${amount > matchInfo.myCoins ? "opacity-50 cursor-not-allowed" : ""}`}
-                  >
-                    ${amount}
-                  </button>
-                ))}
-              </div>
-
-              {/* Bid Slider */}
-              <div className="mb-3">
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="text-muted-foreground">$1</span>
-                  <span className="font-bold text-lg">${playerBid}</span>
-                  <span className="text-muted-foreground">${matchInfo.myCoins}</span>
-                </div>
-                <Slider
-                  value={[playerBid]}
-                  onValueChange={(value) => setPlayerBid(value[0])}
-                  min={1}
-                  max={matchInfo.myCoins}
-                  step={1}
-                  className="w-full"
-                />
-              </div>
-
-              <button
-                onClick={() => handleBidSubmit(playerBid)}
-                className="btn-game-primary w-full flex items-center justify-center gap-2 py-3"
-              >
-                Confirm Bid
-                <ArrowRight className="w-4 h-4" />
-              </button>
+              <h3 className="text-sm font-bold text-primary">🎮 Your Turn!</h3>
+              <p className="text-[10px] text-muted-foreground">Tap any empty cell to place your {matchInfo?.mySymbol}</p>
             </motion.div>
           )}
-        </AnimatePresence>
 
-        {/* Last Bid Result */}
-        <AnimatePresence>
-          {currentMatch.last_bid_result && !isBiddingPhase && !notification && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className="game-card mb-4 text-center text-sm"
-            >
-              <span className="text-muted-foreground">
-                You bid <span className="text-game-x font-bold">${matchInfo?.isPlayer1 ? currentMatch.last_bid_result.player1Bid : currentMatch.last_bid_result.player2Bid}</span> vs
-                <span className="text-game-o font-bold"> ${matchInfo?.isPlayer1 ? currentMatch.last_bid_result.player2Bid : currentMatch.last_bid_result.player1Bid}</span>
-              </span>
-              <span className="block font-medium mt-1">
-                {currentMatch.last_bid_result.winner === matchInfo?.mySymbol ? "🎯 You won the bid!" : `💻 ${matchInfo?.opponent.player_name} won the bid`}
-              </span>
+          {/* Opponent's Turn */}
+          {!isBiddingPhase && !winner && !notification && !isProcessing && bidWinner !== matchInfo?.mySymbol && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full rounded-xl bg-card p-3 text-center mb-2" style={{ boxShadow: 'var(--shadow-card)' }}>
+              <p className="font-medium text-sm mb-0.5">⏳ {matchInfo?.opponent.player_name}'s Turn</p>
+              <p className="text-muted-foreground text-[10px]">Waiting for them to place their mark...</p>
             </motion.div>
           )}
-        </AnimatePresence>
 
-        {/* Your Turn - Place Mark Indicator */}
-        {!isBiddingPhase && !winner && !notification && !isProcessing && bidWinner === matchInfo?.mySymbol && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="game-card mb-4 text-center bg-primary/10 ring-2 ring-primary"
-          >
-            <div className="flex items-center justify-center gap-2 mb-2">
-              <div className={`timer-ring ${timeLeft <= 5 ? "text-game-warning" : "text-foreground"}`}>
-                <Clock className="w-4 h-4 absolute top-0 right-0 opacity-50" />
-                {timeLeft}s
-              </div>
+          {/* Game Board */}
+          <div className="w-full max-w-[min(100%,60vh)] aspect-square rounded-2xl bg-card p-3" style={{ boxShadow: 'var(--shadow-card)' }}>
+            <div className="grid grid-cols-3 gap-2.5 h-full">
+              {board.map((cell, index) => (
+                <motion.button
+                  key={index}
+                  className={`game-cell ${cell === "X" ? "x" : cell === "O" ? "o" : ""} ${winningLine?.includes(index) ? "animate-winner-glow" : ""}`}
+                  onClick={() => makeMove(index)}
+                  disabled={cell !== null || !isMyTurn || !!winner || isBiddingPhase || bidWinner !== matchInfo?.mySymbol || isProcessing}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <AnimatePresence mode="wait">
+                    {cell && (
+                      <motion.span key={cell} initial={{ scale: 0, rotate: -180 }} animate={{ scale: 1, rotate: 0 }} className="animate-pop-in">
+                        {cell}
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </motion.button>
+              ))}
             </div>
-            <h3 className="text-lg font-bold text-primary mb-1">🎮 Your Turn!</h3>
-            <p className="text-sm text-muted-foreground">
-              Tap any empty cell to place your {matchInfo?.mySymbol}
-            </p>
-          </motion.div>
-        )}
-
-        {/* Opponent's Turn Message */}
-        {!isBiddingPhase && !winner && !notification && !isProcessing && bidWinner !== matchInfo?.mySymbol && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="game-card mb-4 text-center"
-          >
-            <p className="font-medium mb-1">⏳ {matchInfo?.opponent.player_name}'s Turn</p>
-            <p className="text-muted-foreground text-sm">
-              Waiting for them to place their mark...
-            </p>
-          </motion.div>
-        )}
-
-        {/* Game Board */}
-        <div className="game-card mb-6">
-          <div className="grid grid-cols-3 gap-3">
-            {board.map((cell, index) => (
-              <motion.button
-                key={index}
-                className={`game-cell ${cell === "X" ? "x" : cell === "O" ? "o" : ""} ${winningLine?.includes(index) ? "animate-winner-glow" : ""}`}
-                onClick={() => makeMove(index)}
-                disabled={cell !== null || !isMyTurn || !!winner || isBiddingPhase || bidWinner !== matchInfo?.mySymbol || isProcessing}
-                whileTap={{ scale: 0.95 }}
-              >
-                <AnimatePresence mode="wait">
-                  {cell && (
-                    <motion.span
-                      key={cell}
-                      initial={{ scale: 0, rotate: -180 }}
-                      animate={{ scale: 1, rotate: 0 }}
-                      className="animate-pop-in"
-                    >
-                      {cell}
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-              </motion.button>
-            ))}
           </div>
+
+          {/* Round Winner */}
+          <AnimatePresence>
+            {winner && !currentMatch.match_winner && !notification && (
+              <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="w-full rounded-2xl bg-card p-4 text-center mt-3" style={{ boxShadow: 'var(--shadow-card)' }}>
+                <Trophy className="w-8 h-8 mx-auto mb-1.5 text-game-coin" />
+                <h3 className="text-lg font-bold mb-0.5">
+                  {winner === matchInfo?.mySymbol ? "You Won This Round! 🎉" : winner === "tie" ? "It's a Tie! 🤝" : `${matchInfo?.opponent.player_name} Wins 💪`}
+                </h3>
+                <p className="text-xs text-muted-foreground">Next round starting...</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
-        {/* Round Winner Announcement */}
-        <AnimatePresence>
-          {winner && !currentMatch.match_winner && !notification && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0 }}
-              className="game-card text-center"
-            >
-              <Trophy className="w-10 h-10 mx-auto mb-2 text-game-coin" />
-              <h3 className="text-xl font-bold mb-1">
-                {winner === matchInfo?.mySymbol ? "You Won This Round! 🎉" : winner === "tie" ? "It's a Tie! 🤝" : `${matchInfo?.opponent.player_name} Wins 💪`}
-              </h3>
-              <p className="text-sm text-muted-foreground">Next round starting...</p>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Bottom Bar */}
+        <div className="flex items-center justify-center pt-2 pb-1">
+          <button onClick={handleBackClick} className="w-full max-w-[200px] py-3 rounded-xl bg-card hover:bg-muted transition-colors font-semibold text-sm flex items-center justify-center gap-2" style={{ boxShadow: 'var(--shadow-card)' }}>
+            <ArrowLeft className="w-4 h-4" /> Back
+          </button>
+        </div>
       </div>
 
       <ConfirmLeaveDialog
