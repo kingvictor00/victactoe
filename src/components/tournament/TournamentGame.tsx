@@ -10,9 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useTournamentWatchdog } from "@/hooks/useTournamentWatchdog";
 import { 
   createNextRoundMatches, 
-  calculateByeCount, 
   getRemainingPlayers,
-  isTournamentComplete,
   generateFairCoinToss,
 } from "@/lib/tournament-utils";
 
@@ -446,6 +444,18 @@ export default function TournamentGame({
         return;
       }
       
+      // Get remaining non-eliminated players
+      const { data: remainingPlayers } = await supabase
+        .from('tournament_players')
+        .select('id')
+        .eq('tournament_id', tournamentId)
+        .eq('is_eliminated', false);
+
+      // If only 2 players remain, there are NO BYEs - it's the final
+      if (!remainingPlayers || remainingPlayers.length <= 2) {
+        return;
+      }
+      
       // Get all active matches for this tournament
       const { data: allActiveMatches } = await supabase
         .from('tournament_matches')
@@ -842,6 +852,7 @@ export default function TournamentGame({
     const winnerId = matchWinnerStr === "player1" ? currentMatch.player1_id : currentMatch.player2_id;
     const loserId = matchWinnerStr === "player1" ? currentMatch.player2_id : currentMatch.player1_id;
     const didWin = winnerId === currentPlayerId;
+    const currentRoundNumber = currentMatch.round_number || 1;
 
     // Mark loser as eliminated
     await supabase
@@ -856,13 +867,10 @@ export default function TournamentGame({
       .eq('tournament_id', tournamentId);
 
     const updatedAllPlayers = latestPlayers || allPlayers;
-    const remainingPlayersList = getRemainingPlayers(updatedAllPlayers.filter(p => p.id !== loserId));
-    
-    // Get current round number from the match
-    const currentRoundNumber = currentMatch.round_number || 1;
+    const remainingPlayersList = getRemainingPlayers(updatedAllPlayers);
 
-    // Check if tournament is complete
-    const tournamentComplete = remainingPlayersList.length <= 1 || totalPlayerCount === 2;
+    // Tournament is complete when only 1 (or 0) non-eliminated players remain
+    const tournamentComplete = remainingPlayersList.length <= 1;
 
     if (tournamentComplete) {
       // Tournament complete! Update status
@@ -874,11 +882,8 @@ export default function TournamentGame({
         })
         .eq('id', tournamentId);
 
-      // Build rankings based on elimination order
       const winnerPlayer = updatedAllPlayers.find(p => p.id === winnerId);
       const loserPlayer = updatedAllPlayers.find(p => p.id === loserId);
-
-      // Get all eliminated players sorted by when they were eliminated (most recent = higher rank)
       const otherEliminated = updatedAllPlayers.filter(
         p => p.is_eliminated && p.id !== loserId
       );
@@ -898,7 +903,6 @@ export default function TournamentGame({
         },
       ];
 
-      // Add other eliminated players in order
       otherEliminated.forEach((p, idx) => {
         rankings.push({
           id: p.id,
@@ -908,45 +912,15 @@ export default function TournamentGame({
         });
       });
 
-      // Show tournament winner screen to BOTH players immediately
       setTournamentRankings(rankings);
       setShowTournamentWinner(true);
     } else {
-      // More rounds to go - check if we need to create next round matches
-      // Get all matches from current round
-      const { data: currentRoundMatches } = await supabase
-        .from('tournament_matches')
-        .select('*')
-        .eq('tournament_id', tournamentId)
-        .eq('round_number', currentRoundNumber);
-
-      const allCurrentRoundComplete = currentRoundMatches?.every(
-        m => m.status === 'completed'
-      );
-
-      // Calculate BYE players for this round (players who didn't have a match)
-      const playersInCurrentRoundMatches = new Set<string>();
-      currentRoundMatches?.forEach(m => {
-        playersInCurrentRoundMatches.add(m.player1_id);
-        playersInCurrentRoundMatches.add(m.player2_id);
-      });
-      
-      const byePlayerIds = remainingPlayersList
-        .filter(p => !playersInCurrentRoundMatches.has(p.id))
-        .map(p => p.id);
-
-      // If all matches in this round are complete, create next round matches
-      // Only player1 (of any completed match) creates to avoid duplicates
-      if (allCurrentRoundComplete && currentRoundMatches && matchInfo.isPlayer1) {
-        const matchesCreated = await createNextRoundMatches(
-          tournamentId,
-          currentRoundNumber,
-          currentRoundMatches as any,
-          byePlayerIds
-        );
-        
-        if (matchesCreated) {
-          console.log(`Created next round matches for round ${currentRoundNumber + 1}`);
+      // More rounds to go
+      // Player1 of this match is responsible for creating next round (idempotent)
+      if (matchInfo.isPlayer1) {
+        const created = await createNextRoundMatches(tournamentId, currentRoundNumber);
+        if (created) {
+          console.log(`[Progression] Created round ${currentRoundNumber + 1} matches`);
         }
       }
 
@@ -958,7 +932,6 @@ export default function TournamentGame({
           subMessage: totalPlayerCount > 2 ? "Advancing to next round..." : "You are the champion!",
         });
       } else {
-        // Loser also sees the tournament results
         setNotification({
           type: "match_lose",
           message: "Match Complete",
@@ -966,12 +939,11 @@ export default function TournamentGame({
         });
       }
 
-      // After delay, show loser the final standings or advance winner
+      // After delay, advance winner or show loser standings
       setTimeout(async () => {
         setNotification(null);
         
         if (!didWin) {
-          // Build rankings for eliminated player to see final standings
           const winnerPlayer = updatedAllPlayers.find(p => p.id === winnerId);
           const loserPlayer = updatedAllPlayers.find(p => p.id === loserId);
           const rankings = [
@@ -999,7 +971,7 @@ export default function TournamentGame({
           
           setIsReady(false);
           setCurrentMatch(null);
-          byeCheckDoneRef.current = false; // Reset BYE check for next round
+          byeCheckDoneRef.current = false;
           fetchData();
         }
       }, ROUND_RESULT_DELAY);
