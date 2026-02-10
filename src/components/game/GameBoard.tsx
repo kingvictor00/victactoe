@@ -521,7 +521,7 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
 
   return (
     <div className="h-[100dvh] bg-background flex flex-col overflow-hidden">
-      <div className="max-w-md mx-auto w-full flex flex-col h-full px-4 py-3">
+      <div className="max-w-md mx-auto w-full flex flex-col h-full px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-0">
         {/* Top Bar: Players + Score */}
         <div className="flex items-center gap-3 mb-2">
           {/* Player X (You) */}
@@ -738,7 +738,7 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
         </div>
 
         {/* Bottom Bar */}
-        <div className="flex items-center justify-center gap-3 pt-2 pb-1">
+        <div className="flex items-center justify-center gap-3 pt-2 pb-[max(0.25rem,env(safe-area-inset-bottom))]">
           <button onClick={handleBackClick} className="flex-1 py-3 rounded-xl bg-card hover:bg-muted transition-colors font-semibold text-sm flex items-center justify-center gap-2" style={{ boxShadow: 'var(--shadow-card)' }}>
             <Home className="w-4 h-4" /> Back
           </button>

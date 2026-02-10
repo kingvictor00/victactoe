@@ -70,6 +70,13 @@ const ROUND_RESULT_DELAY = 3000; // 3 seconds to show round results
 const COIN_TOSS_ANIMATION_TIME = 2000; // 2 seconds for coin toss animation
 const COIN_TOSS_TIMEOUT = 5000; // 5 second timeout for P1's result
 
+// Helper: ordinal suffix
+const getOrdinal = (n: number): string => {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+};
+
 // Convert board string to array
 const boardStringToArray = (boardStr: string): Board => {
   return boardStr.split('').map(c => c === '-' ? null : c as Player);
@@ -868,6 +875,7 @@ export default function TournamentGame({
 
     const updatedAllPlayers = latestPlayers || allPlayers;
     const remainingPlayersList = getRemainingPlayers(updatedAllPlayers);
+    const eliminatedCount = updatedAllPlayers.filter(p => p.is_eliminated).length;
 
     // Tournament is complete when only 1 (or 0) non-eliminated players remain
     const tournamentComplete = remainingPlayersList.length <= 1;
@@ -882,6 +890,7 @@ export default function TournamentGame({
         })
         .eq('id', tournamentId);
 
+      // Build full rankings: winner first, then eliminated in reverse order of elimination
       const winnerPlayer = updatedAllPlayers.find(p => p.id === winnerId);
       const loserPlayer = updatedAllPlayers.find(p => p.id === loserId);
       const otherEliminated = updatedAllPlayers.filter(
@@ -924,46 +933,58 @@ export default function TournamentGame({
         }
       }
 
-      // Show appropriate message
-      if (didWin) {
+      if (!didWin) {
+        // Eliminated player: calculate their finishing position
+        // Position = remaining players + 1 (they just got knocked out)
+        const finishPosition = remainingPlayersList.length + 1;
+
+        setNotification({
+          type: "match_lose",
+          message: `Game ended — You finished ${getOrdinal(finishPosition)}`,
+          subMessage: "You've been eliminated from the tournament.",
+        });
+
+        // After delay, show leaderboard for eliminated player
+        setTimeout(() => {
+          setNotification(null);
+          // Build partial rankings from the eliminated player's perspective
+          const winnerPlayer = updatedAllPlayers.find(p => p.id === winnerId);
+          const rankings: { id: string; name: string; position: number; isCurrentPlayer: boolean }[] = [];
+          
+          // Add remaining players as "still playing" (position TBD, but show them above)
+          remainingPlayersList.forEach((p, idx) => {
+            rankings.push({
+              id: p.id,
+              name: p.player_name,
+              position: idx + 1,
+              isCurrentPlayer: p.id === currentPlayerId,
+            });
+          });
+          
+          // Add current eliminated player
+          rankings.push({
+            id: loserId,
+            name: updatedAllPlayers.find(p => p.id === loserId)?.player_name || "You",
+            position: finishPosition,
+            isCurrentPlayer: loserId === currentPlayerId,
+          });
+
+          setTournamentRankings(rankings);
+          setShowTournamentWinner(true);
+        }, ROUND_RESULT_DELAY);
+      } else {
+        // Winner: show advancement message
         setNotification({
           type: "match_win",
           message: "🎉 Match Won!",
-          subMessage: totalPlayerCount > 2 ? "Advancing to next round..." : "You are the champion!",
+          subMessage: "Advancing to next round...",
         });
-      } else {
-        setNotification({
-          type: "match_lose",
-          message: "Match Complete",
-          subMessage: "You've been eliminated from the tournament.",
-        });
-      }
 
-      // After delay, advance winner or show loser standings
-      setTimeout(async () => {
-        setNotification(null);
-        
-        if (!didWin) {
-          const winnerPlayer = updatedAllPlayers.find(p => p.id === winnerId);
-          const loserPlayer = updatedAllPlayers.find(p => p.id === loserId);
-          const rankings = [
-            {
-              id: winnerId,
-              name: winnerPlayer?.player_name || "Winner",
-              position: 1,
-              isCurrentPlayer: winnerId === currentPlayerId,
-            },
-            {
-              id: loserId,
-              name: loserPlayer?.player_name || "Eliminated",
-              position: 2,
-              isCurrentPlayer: loserId === currentPlayerId,
-            },
-          ];
-          setTournamentRankings(rankings);
-          setShowTournamentWinner(true);
-        } else {
-          // Winner advances - reset for next match
+        // After delay, advance winner to next match
+        setTimeout(async () => {
+          setNotification(null);
+          
+          // Reset ready state for next match
           await supabase
             .from('tournament_players')
             .update({ is_ready: false })
@@ -972,9 +993,10 @@ export default function TournamentGame({
           setIsReady(false);
           setCurrentMatch(null);
           byeCheckDoneRef.current = false;
+          setHasByeAdvancement(false);
           fetchData();
-        }
-      }, ROUND_RESULT_DELAY);
+        }, ROUND_RESULT_DELAY);
+      }
     }
   }, [currentMatch, matchInfo, currentPlayerId, allPlayers, totalPlayerCount, tournamentId, fetchData]);
 
@@ -1235,7 +1257,7 @@ export default function TournamentGame({
   // Game board with bidding
   return (
     <div className="h-[100dvh] bg-background flex flex-col overflow-hidden">
-      <div className="max-w-md mx-auto w-full flex flex-col h-full px-4 py-3">
+      <div className="max-w-md mx-auto w-full flex flex-col h-full px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-0">
         {/* Top Bar: Players + Score */}
         <div className="flex items-center gap-3 mb-2">
           {/* Player X */}
@@ -1450,7 +1472,7 @@ export default function TournamentGame({
         </div>
 
         {/* Bottom Bar */}
-        <div className="flex items-center justify-center pt-2 pb-1">
+        <div className="flex items-center justify-center pt-2 pb-[max(0.25rem,env(safe-area-inset-bottom))]">
           <button onClick={handleBackClick} className="w-full max-w-[200px] py-3 rounded-xl bg-card hover:bg-muted transition-colors font-semibold text-sm flex items-center justify-center gap-2" style={{ boxShadow: 'var(--shadow-card)' }}>
             <ArrowLeft className="w-4 h-4" /> Back
           </button>
