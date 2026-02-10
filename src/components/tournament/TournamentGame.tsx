@@ -418,8 +418,8 @@ export default function TournamentGame({
           } else {
             setNotification({
               type: "opponent_turn",
-              message: `⏳ ${matchInfo.opponent.player_name}'s Turn`,
-              subMessage: "Waiting for them to place their mark...",
+              message: `${matchInfo.opponent.player_name} is thinking`,
+              subMessage: undefined,
             });
             setTimeout(() => {
               setNotification(null);
@@ -649,8 +649,8 @@ export default function TournamentGame({
             } else {
               setNotification({
                 type: "opponent_turn", 
-                message: `⏳ ${matchInfo.opponent.player_name}'s Turn`,
-                subMessage: "Waiting for them to place their mark...",
+                message: `${matchInfo.opponent.player_name} is thinking`,
+                subMessage: undefined,
               });
             }
             setTimeout(() => {
@@ -727,8 +727,8 @@ export default function TournamentGame({
       } else {
         setNotification({
           type: "opponent_turn",
-          message: `⏳ ${matchInfo.opponent.player_name}'s Turn`,
-          subMessage: "Waiting for them to place their mark...",
+          message: `${matchInfo.opponent.player_name} is thinking`,
+          subMessage: undefined,
         });
         setTimeout(() => {
           setNotification(null);
@@ -794,10 +794,22 @@ export default function TournamentGame({
 
       const didWinRound = roundWinner === matchInfo.mySymbol;
 
+      // Determine win reason
+      let winReason = "";
+      if (result.line) {
+        winReason = "Won by completing three marks";
+      } else if (p1Bankrupt || p2Bankrupt) {
+        winReason = "Won by bankrupting opponent";
+      } else if (result.winner === "tie") {
+        winReason = "Round ended in a tie";
+      } else {
+        winReason = "Won by economic advantage";
+      }
+
       setNotification({
         type: didWinRound ? "round_win" : "round_lose",
         message: didWinRound ? "🎉 You Won This Round!" : `${matchInfo.opponent.player_name} Won This Round`,
-        subMessage: `Score: ${matchInfo.isPlayer1 ? newP1Score : newP2Score} - ${matchInfo.isPlayer1 ? newP2Score : newP1Score}`,
+        subMessage: `${winReason} • Score: ${matchInfo.isPlayer1 ? newP1Score : newP2Score} - ${matchInfo.isPlayer1 ? newP2Score : newP1Score}`,
       });
 
       setTimeout(async () => {
@@ -1318,6 +1330,13 @@ export default function TournamentGame({
                 {notification.subMessage && (
                   <p className="text-xs text-muted-foreground">{notification.subMessage}</p>
                 )}
+                {notification.type === "opponent_turn" && (
+                  <div className="flex items-center justify-center gap-1 mt-1.5">
+                    <motion.div className="w-1.5 h-1.5 rounded-full bg-muted-foreground" animate={{ y: [0, -6, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0 }} />
+                    <motion.div className="w-1.5 h-1.5 rounded-full bg-muted-foreground" animate={{ y: [0, -6, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0.15 }} />
+                    <motion.div className="w-1.5 h-1.5 rounded-full bg-muted-foreground" animate={{ y: [0, -6, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0.3 }} />
+                  </div>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
@@ -1429,8 +1448,12 @@ export default function TournamentGame({
           {/* Opponent's Turn */}
           {!isBiddingPhase && !winner && !notification && !isProcessing && bidWinner !== matchInfo?.mySymbol && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full rounded-xl bg-card p-3 text-center mb-2" style={{ boxShadow: 'var(--shadow-card)' }}>
-              <p className="font-medium text-sm mb-0.5">⏳ {matchInfo?.opponent.player_name}'s Turn</p>
-              <p className="text-muted-foreground text-[10px]">Waiting for them to place their mark...</p>
+              <p className="font-medium text-sm mb-1">{matchInfo?.opponent.player_name} is thinking</p>
+              <div className="flex items-center justify-center gap-1">
+                <motion.div className="w-1.5 h-1.5 rounded-full bg-muted-foreground" animate={{ y: [0, -6, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0 }} />
+                <motion.div className="w-1.5 h-1.5 rounded-full bg-muted-foreground" animate={{ y: [0, -6, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0.15 }} />
+                <motion.div className="w-1.5 h-1.5 rounded-full bg-muted-foreground" animate={{ y: [0, -6, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0.3 }} />
+              </div>
             </motion.div>
           )}
 
