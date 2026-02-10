@@ -569,13 +569,13 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
               ${computerCoins}
             </div>
             {isComputerThinking && (
-              <div className="flex items-center gap-1 mt-1">
+              <div className="flex items-center gap-1.5 mt-1">
+                <span className="text-[10px] text-muted-foreground">CPU is thinking</span>
                 <div className="flex gap-0.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-secondary animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <div className="w-1.5 h-1.5 rounded-full bg-secondary animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <div className="w-1.5 h-1.5 rounded-full bg-secondary animate-bounce" style={{ animationDelay: '300ms' }} />
+                  <motion.div className="w-1.5 h-1.5 rounded-full bg-secondary" animate={{ y: [0, -4, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0 }} />
+                  <motion.div className="w-1.5 h-1.5 rounded-full bg-secondary" animate={{ y: [0, -4, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0.15 }} />
+                  <motion.div className="w-1.5 h-1.5 rounded-full bg-secondary" animate={{ y: [0, -4, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0.3 }} />
                 </div>
-                <span className="text-[10px] text-muted-foreground">Thinking</span>
               </div>
             )}
           </div>
