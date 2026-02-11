@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Coins, Clock, Trophy, RotateCcw, Home, ArrowRight, Loader2 } from "lucide-react";
+import { Coins, Clock, Trophy, RotateCcw, Home, ArrowRight, Loader2, Volume2, VolumeX } from "lucide-react";
 import GameOverModal from "./GameOverModal";
 import VoxelAvatar from "@/components/ui/VoxelAvatar";
 import { Slider } from "@/components/ui/slider";
 import ConfirmLeaveDialog from "@/components/ui/ConfirmLeaveDialog";
+import { useGameSounds } from "@/hooks/useGameSounds";
 
 type Player = "X" | "O";
 type CellValue = Player | null;
@@ -60,6 +61,7 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
   const [notification, setNotification] = useState<Notification | null>(null);
   const [isProcessingBid, setIsProcessingBid] = useState(false);
   const [coinTossAnimation, setCoinTossAnimation] = useState(false);
+  const { isMuted, toggleMute, play } = useGameSounds();
 
   const checkWinner = useCallback((currentBoard: Board): { winner: Player | "tie" | null; line: number[] | null } => {
     for (const combo of WINNING_COMBINATIONS) {
@@ -221,6 +223,7 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
       const newBoard = [...currentBoard];
       newBoard[moveIndex] = "O";
       setBoard(newBoard);
+      play("markPlace");
       
       const result = checkWinner(newBoard);
       if (result.winner) {
@@ -228,8 +231,10 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
         setWinningLine(result.line);
         if (result.winner === "O") {
           setScore(prev => ({ ...prev, computer: prev.computer + 1 }));
+          play("lose");
         } else if (result.winner === "X") {
           setScore(prev => ({ ...prev, player: prev.player + 1 }));
+          play("win");
         }
         setTimeout(() => {
           const newPlayerScore = result.winner === "X" ? score.player + 1 : score.player;
@@ -251,6 +256,7 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
   const handleBidSubmit = useCallback((bidAmount: number) => {
     if (isProcessingBid) return;
     setIsProcessingBid(true);
+    play("bidPlace");
     
     const computerBid = getComputerBid();
     // Enforce minimum bid of $1 - no $0 bids allowed
@@ -338,6 +344,7 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
     newBoard[cellIndex] = currentBidder;
     setBoard(newBoard);
     setAutoPlays(0);
+    play("markPlace");
     
     const result = checkWinner(newBoard);
     if (result.winner) {
@@ -345,8 +352,10 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
       setWinningLine(result.line);
       if (result.winner === "X") {
         setScore(prev => ({ ...prev, player: prev.player + 1 }));
+        play("win");
       } else if (result.winner === "O") {
         setScore(prev => ({ ...prev, computer: prev.computer + 1 }));
+        play("lose");
       }
       setTimeout(() => {
         if (score.player === 1 || score.computer === 1 || result.winner === "tie") {
@@ -431,6 +440,7 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
     setPlayerBid(10);
     setNotification(null);
     setIsProcessingBid(false);
+    play("roundStart");
   };
 
   const resetGame = () => {
@@ -738,6 +748,9 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
         <div className="flex items-center justify-center gap-3 pt-2 pb-[max(0.25rem,env(safe-area-inset-bottom))]">
           <button onClick={handleBackClick} className="flex-1 py-3 rounded-xl bg-card hover:bg-muted transition-colors font-semibold text-sm flex items-center justify-center gap-2" style={{ boxShadow: 'var(--shadow-card)' }}>
             <Home className="w-4 h-4" /> Back
+          </button>
+          <button onClick={toggleMute} className="py-3 px-4 rounded-xl bg-card hover:bg-muted transition-colors" style={{ boxShadow: 'var(--shadow-card)' }}>
+            {isMuted ? <VolumeX className="w-4 h-4 text-muted-foreground" /> : <Volume2 className="w-4 h-4" />}
           </button>
           <button onClick={resetGame} className="flex-1 py-3 rounded-xl bg-card hover:bg-muted transition-colors font-semibold text-sm flex items-center justify-center gap-2" style={{ boxShadow: 'var(--shadow-card)' }}>
             <RotateCcw className="w-4 h-4" /> Reset
