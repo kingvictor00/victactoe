@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Trophy, Users, Check, Loader2, ArrowLeft, Coins, Clock, ArrowRight } from "lucide-react";
+import { Trophy, Users, Check, Loader2, ArrowLeft, Coins, Clock, ArrowRight, Volume2, VolumeX } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import FloatingBackground from "@/components/ui/FloatingBackground";
 import ConfirmLeaveDialog from "@/components/ui/ConfirmLeaveDialog";
@@ -9,6 +9,7 @@ import VoxelAvatar from "@/components/ui/VoxelAvatar";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import { useTournamentWatchdog } from "@/hooks/useTournamentWatchdog";
+import { useGameSounds } from "@/hooks/useGameSounds";
 import { 
   createNextRoundMatches, 
   getRemainingPlayers,
@@ -122,6 +123,7 @@ export default function TournamentGame({
   const lastSeenBidResultRef = useRef<string | null>(null);
   const byeCheckDoneRef = useRef(false);
   const { toast } = useToast();
+  const { isMuted, toggleMute, play } = useGameSounds();
 
   // Get current player
   const currentPlayer = useMemo(() =>
@@ -406,27 +408,9 @@ export default function TournamentGame({
         });
         
         setTimeout(() => {
-          if (didWin) {
-            setNotification({
-              type: "your_turn",
-              message: "🎮 Your Turn!",
-              subMessage: "Tap any empty cell to place your mark",
-            });
-            setTimeout(() => {
-              setNotification(null);
-              setIsProcessing(false);
-            }, 1500);
-          } else {
-            setNotification({
-              type: "opponent_turn",
-              message: `${matchInfo.opponent.player_name} is thinking`,
-              subMessage: undefined,
-            });
-            setTimeout(() => {
-              setNotification(null);
-              setIsProcessing(false);
-            }, 1500);
-          }
+          setNotification(null);
+          setIsProcessing(false);
+          play("turnChange");
         }, COIN_TOSS_ANIMATION_TIME);
       }
       return;
@@ -538,6 +522,7 @@ export default function TournamentGame({
     if (!currentMatch || !matchInfo || hasSubmittedBidRef.current) return;
 
     hasSubmittedBidRef.current = true;
+    play("bidPlace");
 
     const actualBid = Math.max(1, Math.min(bidAmount, matchInfo.myCoins));
 
@@ -632,32 +617,17 @@ export default function TournamentGame({
           // If we're still showing coin toss animation, P1's result didn't arrive
           // Generate our own result as fallback (this ensures no freeze)
           const fallbackWinner: Player = generateFairCoinToss() ? "X" : "O";
-          const didWin = fallbackWinner === matchInfo.mySymbol;
           
           setNotification({
             type: "tie_coin_toss",
             message: "🪙 Coin Toss Result!",
-            subMessage: `Both bid $${p2Bid}. ${didWin ? "You" : matchInfo.opponent.player_name} won the toss!`,
+            subMessage: `Both bid $${p2Bid}. ${fallbackWinner === matchInfo.mySymbol ? "You" : matchInfo.opponent.player_name} won the toss!`,
           });
           
           setTimeout(() => {
-            if (didWin) {
-              setNotification({
-                type: "your_turn",
-                message: "🎮 Your Turn!",
-                subMessage: "Tap any empty cell to place your mark",
-              });
-            } else {
-              setNotification({
-                type: "opponent_turn", 
-                message: `${matchInfo.opponent.player_name} is thinking`,
-                subMessage: undefined,
-              });
-            }
-            setTimeout(() => {
-              setNotification(null);
-              setIsProcessing(false);
-            }, 1500);
+            setNotification(null);
+            setIsProcessing(false);
+            play("turnChange");
           }, COIN_TOSS_ANIMATION_TIME);
         }, 5000); // 5 second timeout for P1's result
         
@@ -712,30 +682,11 @@ export default function TournamentGame({
       });
     }
 
-    // Show bid result, then show turn message
+    // After showing bid result, clear notification and let static turn indicators take over
     setTimeout(() => {
-      // After bid result, show clear turn instruction
-      if (didWin) {
-        setNotification({
-          type: "your_turn",
-          message: "🎮 Your Turn!",
-          subMessage: "Tap any empty cell to place your mark",
-        });
-        setTimeout(() => {
-          setNotification(null);
-          setIsProcessing(false);
-        }, 1500);
-      } else {
-        setNotification({
-          type: "opponent_turn",
-          message: `${matchInfo.opponent.player_name} is thinking`,
-          subMessage: undefined,
-        });
-        setTimeout(() => {
-          setNotification(null);
-          setIsProcessing(false);
-        }, 1500);
-      }
+      setNotification(null);
+      setIsProcessing(false);
+      play(didWin ? "turnChange" : "turnChange");
     }, BID_RESULT_DELAY);
   }, [currentMatch, matchInfo]);
 
@@ -745,6 +696,7 @@ export default function TournamentGame({
     }
 
     setIsProcessing(true);
+    play("markPlace");
 
     const newBoard = [...board];
     newBoard[index] = matchInfo.mySymbol;
@@ -813,15 +765,32 @@ export default function TournamentGame({
         subMessage: `${winReason} • Score: ${matchInfo.isPlayer1 ? newP1Score : newP2Score} - ${matchInfo.isPlayer1 ? newP2Score : newP1Score}`,
       });
 
-        setTimeout(async () => {
-        setNotification(null);
+      play(didWinRound ? "win" : "lose");
 
+        setTimeout(async () => {
         // Check if match is over
         if (newP1Score >= 2 || newP2Score >= 2) {
-          await handleMatchComplete(newP1Score >= 2 ? "player1" : "player2");
+          const matchWinnerStr = newP1Score >= 2 ? "player1" : "player2";
+          const didWinMatch = (matchWinnerStr === "player1" && matchInfo.isPlayer1) || (matchWinnerStr === "player2" && !matchInfo.isPlayer1);
+
+          // Show match win confirmation before leaderboard
+          setNotification({
+            type: didWinMatch ? "match_win" : "match_lose",
+            message: didWinMatch ? "🏆 You Won the Match!" : `${matchInfo.opponent.player_name} Won the Match`,
+            subMessage: `Final Score: ${matchInfo.isPlayer1 ? newP1Score : newP2Score} - ${matchInfo.isPlayer1 ? newP2Score : newP1Score}`,
+          });
+
+          if (didWinMatch) play("tournamentVictory");
+
+          // Brief pause to show match result, then proceed
+          setTimeout(async () => {
+            setNotification(null);
+            await handleMatchComplete(matchWinnerStr);
+          }, ROUND_RESULT_DELAY);
         } else {
+          setNotification(null);
+          play("roundStart");
           // Start next round - the player who made the move resets the board
-          // (no P1 guard - whoever won the bid and placed the mark triggers reset)
           const deadline = new Date(Date.now() + PHASE_TIME * 1000).toISOString();
           await supabase
             .from('tournament_matches')
@@ -1487,9 +1456,12 @@ export default function TournamentGame({
         </div>
 
         {/* Bottom Bar */}
-        <div className="flex items-center justify-center pt-2 pb-[max(0.25rem,env(safe-area-inset-bottom))]">
-          <button onClick={handleBackClick} className="w-full max-w-[200px] py-3 rounded-xl bg-card hover:bg-muted transition-colors font-semibold text-sm flex items-center justify-center gap-2" style={{ boxShadow: 'var(--shadow-card)' }}>
+        <div className="flex items-center justify-center gap-3 pt-2 pb-[max(0.25rem,env(safe-area-inset-bottom))]">
+          <button onClick={handleBackClick} className="flex-1 py-3 rounded-xl bg-card hover:bg-muted transition-colors font-semibold text-sm flex items-center justify-center gap-2" style={{ boxShadow: 'var(--shadow-card)' }}>
             <ArrowLeft className="w-4 h-4" /> Back
+          </button>
+          <button onClick={toggleMute} className="py-3 px-4 rounded-xl bg-card hover:bg-muted transition-colors" style={{ boxShadow: 'var(--shadow-card)' }}>
+            {isMuted ? <VolumeX className="w-4 h-4 text-muted-foreground" /> : <Volume2 className="w-4 h-4" />}
           </button>
         </div>
       </div>
