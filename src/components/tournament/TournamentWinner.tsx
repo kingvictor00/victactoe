@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { Trophy, Home, Crown, Medal, Star } from "lucide-react";
+import VoxelAvatar from "@/components/ui/VoxelAvatar";
 
 interface PlayerRanking {
   id: string;
@@ -127,10 +128,8 @@ export default function TournamentWinner({
 
                       {/* Avatar */}
                       <div className="relative mb-1">
-                        <div className={`${player.position === 1 ? 'w-16 h-16' : 'w-12 h-12'} rounded-full ${getAvatarBg(player.position)} ${getAvatarRing(player.position, player.isCurrentPlayer)} flex items-center justify-center shadow-lg`}>
-                          <span className={`font-bold text-white ${player.position === 1 ? 'text-xl' : 'text-sm'}`}>
-                            {player.name.charAt(0).toUpperCase()}
-                          </span>
+                        <div className={`${player.position === 1 ? 'w-16 h-16' : 'w-12 h-12'} rounded-full ${getAvatarRing(player.position, player.isCurrentPlayer)} flex items-center justify-center shadow-lg overflow-hidden`}>
+                          <VoxelAvatar seed={player.id} size={player.position === 1 ? 64 : 48} />
                         </div>
                         {/* Position badge */}
                         <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full ${getBadgeBg(player.position)} flex items-center justify-center text-[10px] font-bold shadow-sm`}>
@@ -177,10 +176,8 @@ export default function TournamentWinner({
                       </span>
 
                       {/* Avatar */}
-                      <div className={`w-10 h-10 rounded-full bg-muted flex items-center justify-center ${player.isCurrentPlayer ? 'ring-2 ring-primary' : ''}`}>
-                        <span className="font-bold text-sm text-muted-foreground">
-                          {player.name.charAt(0).toUpperCase()}
-                        </span>
+                      <div className={`w-10 h-10 rounded-full overflow-hidden flex items-center justify-center ${player.isCurrentPlayer ? 'ring-2 ring-primary' : ''}`}>
+                        <VoxelAvatar seed={player.id} size={40} />
                       </div>
 
                       {/* Name */}

@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import FloatingBackground from "@/components/ui/FloatingBackground";
 import ConfirmLeaveDialog from "@/components/ui/ConfirmLeaveDialog";
 import TournamentWinner from "./TournamentWinner";
+import VoxelAvatar from "@/components/ui/VoxelAvatar";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import { useTournamentWatchdog } from "@/hooks/useTournamentWatchdog";
@@ -812,35 +813,34 @@ export default function TournamentGame({
         subMessage: `${winReason} • Score: ${matchInfo.isPlayer1 ? newP1Score : newP2Score} - ${matchInfo.isPlayer1 ? newP2Score : newP1Score}`,
       });
 
-      setTimeout(async () => {
+        setTimeout(async () => {
         setNotification(null);
 
         // Check if match is over
         if (newP1Score >= 2 || newP2Score >= 2) {
           await handleMatchComplete(newP1Score >= 2 ? "player1" : "player2");
         } else {
-          // Start next round
-          if (matchInfo.isPlayer1) {
-            const deadline = new Date(Date.now() + PHASE_TIME * 1000).toISOString();
-            await supabase
-              .from('tournament_matches')
-              .update({
-                board: "---------",
-                current_turn: "X",
-                winner: null,
-                winning_line: null,
-                is_bidding_phase: true,
-                bid_winner: null,
-                player1_coins: INITIAL_COINS,
-                player2_coins: INITIAL_COINS,
-                current_round: currentMatch.current_round + 1,
-                phase_deadline: deadline,
-                player1_bid: null,
-                player2_bid: null,
-                last_bid_result: null,
-              })
-              .eq('id', currentMatch.id);
-          }
+          // Start next round - the player who made the move resets the board
+          // (no P1 guard - whoever won the bid and placed the mark triggers reset)
+          const deadline = new Date(Date.now() + PHASE_TIME * 1000).toISOString();
+          await supabase
+            .from('tournament_matches')
+            .update({
+              board: "---------",
+              current_turn: "X",
+              winner: null,
+              winning_line: null,
+              is_bidding_phase: true,
+              bid_winner: null,
+              player1_coins: INITIAL_COINS,
+              player2_coins: INITIAL_COINS,
+              current_round: currentMatch.current_round + 1,
+              phase_deadline: deadline,
+              player1_bid: null,
+              player2_bid: null,
+              last_bid_result: null,
+            })
+            .eq('id', currentMatch.id);
         }
         setIsProcessing(false);
       }, ROUND_RESULT_DELAY);
@@ -1170,9 +1170,7 @@ export default function TournamentGame({
                 <div className={`flex items-center justify-between p-4 rounded-xl ${matchInfo.isPlayer1 ? 'bg-primary/10 ring-1 ring-primary' : 'bg-muted'
                   }`}>
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-bold">
-                      X
-                    </div>
+                    <VoxelAvatar seed={matchInfo.player1.id} size={40} />
                     <div>
                       <p className="font-medium">{matchInfo.player1.player_name}</p>
                       {matchInfo.isPlayer1 && (
@@ -1197,9 +1195,7 @@ export default function TournamentGame({
                 <div className={`flex items-center justify-between p-4 rounded-xl ${!matchInfo.isPlayer1 ? 'bg-primary/10 ring-1 ring-primary' : 'bg-muted'
                   }`}>
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center font-bold">
-                      O
-                    </div>
+                    <VoxelAvatar seed={matchInfo.player2.id} size={40} />
                     <div>
                       <p className="font-medium">{matchInfo.player2.player_name}</p>
                       {!matchInfo.isPlayer1 && (
@@ -1275,9 +1271,7 @@ export default function TournamentGame({
           {/* Player X */}
           <div className={`flex-1 rounded-xl p-2.5 bg-card transition-all ${bidWinner === "X" ? "ring-2 ring-primary" : ""}`} style={{ boxShadow: 'var(--shadow-card)' }}>
             <div className="flex items-center gap-2 mb-1">
-              <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center">
-                <span className="text-game-x font-bold text-sm">X</span>
-              </div>
+              <VoxelAvatar seed={matchInfo?.player1.id || "p1"} size={28} />
               <span className="font-medium text-xs truncate">{matchInfo?.player1.player_name}</span>
               {matchInfo?.isPlayer1 && <span className="text-[10px] text-primary">(You)</span>}
             </div>
@@ -1301,9 +1295,7 @@ export default function TournamentGame({
           {/* Player O */}
           <div className={`flex-1 rounded-xl p-2.5 bg-card transition-all ${bidWinner === "O" ? "ring-2 ring-secondary" : ""}`} style={{ boxShadow: 'var(--shadow-card)' }}>
             <div className="flex items-center gap-2 mb-1">
-              <div className="w-7 h-7 rounded-full bg-secondary/10 flex items-center justify-center">
-                <span className="text-game-o font-bold text-sm">O</span>
-              </div>
+              <VoxelAvatar seed={matchInfo?.player2.id || "p2"} size={28} />
               <span className="font-medium text-xs truncate">{matchInfo?.player2.player_name}</span>
               {!matchInfo?.isPlayer1 && <span className="text-[10px] text-primary">(You)</span>}
             </div>
