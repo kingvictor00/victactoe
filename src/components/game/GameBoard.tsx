@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Coins, Clock, Trophy, RotateCcw, Home, ArrowRight, Loader2, Volume2, VolumeX } from "lucide-react";
+import { Coins, Clock, Trophy, RotateCcw, Home, ArrowRight, Loader2, Volume2, VolumeX, Music } from "lucide-react";
 import GameOverModal from "./GameOverModal";
 import VoxelAvatar from "@/components/ui/VoxelAvatar";
 import { Slider } from "@/components/ui/slider";
 import ConfirmLeaveDialog from "@/components/ui/ConfirmLeaveDialog";
 import { useGameSounds } from "@/hooks/useGameSounds";
+import { useBackgroundMusic } from "@/hooks/useBackgroundMusic";
 
 type Player = "X" | "O";
 type CellValue = Player | null;
@@ -62,6 +63,7 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
   const [isProcessingBid, setIsProcessingBid] = useState(false);
   const [coinTossAnimation, setCoinTossAnimation] = useState(false);
   const { isMuted, toggleMute, play } = useGameSounds();
+  const { isMusicMuted, toggleMusic } = useBackgroundMusic();
 
   const checkWinner = useCallback((currentBoard: Board): { winner: Player | "tie" | null; line: number[] | null } => {
     for (const combo of WINNING_COMBINATIONS) {
@@ -749,8 +751,11 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
           <button onClick={handleBackClick} className="flex-1 py-3 rounded-xl bg-card hover:bg-muted transition-colors font-semibold text-sm flex items-center justify-center gap-2" style={{ boxShadow: 'var(--shadow-card)' }}>
             <Home className="w-4 h-4" /> Back
           </button>
-          <button onClick={toggleMute} className="py-3 px-4 rounded-xl bg-card hover:bg-muted transition-colors" style={{ boxShadow: 'var(--shadow-card)' }}>
+          <button onClick={toggleMute} className="py-3 px-3 rounded-xl bg-card hover:bg-muted transition-colors" style={{ boxShadow: 'var(--shadow-card)' }} title="Sound effects">
             {isMuted ? <VolumeX className="w-4 h-4 text-muted-foreground" /> : <Volume2 className="w-4 h-4" />}
+          </button>
+          <button onClick={toggleMusic} className="py-3 px-3 rounded-xl bg-card hover:bg-muted transition-colors" style={{ boxShadow: 'var(--shadow-card)' }} title="Background music">
+            <Music className={`w-4 h-4 ${isMusicMuted ? 'text-muted-foreground' : 'text-primary'}`} />
           </button>
           <button onClick={resetGame} className="flex-1 py-3 rounded-xl bg-card hover:bg-muted transition-colors font-semibold text-sm flex items-center justify-center gap-2" style={{ boxShadow: 'var(--shadow-card)' }}>
             <RotateCcw className="w-4 h-4" /> Reset
