@@ -336,11 +336,9 @@ export default function TournamentGame({
           subMessage: `${matchInfo.opponent.player_name} has left the game. You win!`,
         });
         
-        // After showing forfeit message, trigger match complete flow
-        setTimeout(() => {
-          setNotification(null);
-          handleMatchComplete(currentMatch.match_winner as "player1" | "player2");
-        }, ROUND_RESULT_DELAY);
+        // Immediately trigger match complete flow - no delay
+        setNotification(null);
+        handleMatchComplete(currentMatch.match_winner as "player1" | "player2");
       } else if (!didWin) {
         // We lost (we forfeited or were already going to results)
         hasHandledForfeitRef.current = true;
@@ -430,6 +428,15 @@ export default function TournamentGame({
       resolveBids(p1Bid, p2Bid);
     }
   }, [currentMatch?.player1_bid, currentMatch?.player2_bid, currentMatch?.last_bid_result, currentMatch?.is_bidding_phase, isBiddingPhase, matchInfo, isProcessing, notification?.type]);
+
+  // Clear BYE state when a match is found
+  useEffect(() => {
+    if (currentMatch && hasByeAdvancement) {
+      setHasByeAdvancement(false);
+      setNotification(null);
+      byeCheckDoneRef.current = false;
+    }
+  }, [currentMatch, hasByeAdvancement]);
 
   // BYE Detection - Check if player has a BYE for current round
   useEffect(() => {
@@ -769,30 +776,22 @@ export default function TournamentGame({
 
       play(didWinRound ? "win" : "lose");
 
+      // Check if match is over - immediate transition, no artificial delay
+      if (newP1Score >= 2 || newP2Score >= 2) {
+        const matchWinnerStr = newP1Score >= 2 ? "player1" : "player2";
+        const didWinMatch = (matchWinnerStr === "player1" && matchInfo.isPlayer1) || (matchWinnerStr === "player2" && !matchInfo.isPlayer1);
+
+        if (didWinMatch) play("tournamentVictory");
+
+        // Immediately proceed to match completion and leaderboard
+        setNotification(null);
+        setIsProcessing(false);
+        await handleMatchComplete(matchWinnerStr);
+      } else {
+        // Start next round after brief round-result display
         setTimeout(async () => {
-        // Check if match is over
-        if (newP1Score >= 2 || newP2Score >= 2) {
-          const matchWinnerStr = newP1Score >= 2 ? "player1" : "player2";
-          const didWinMatch = (matchWinnerStr === "player1" && matchInfo.isPlayer1) || (matchWinnerStr === "player2" && !matchInfo.isPlayer1);
-
-          // Show match win confirmation before leaderboard
-          setNotification({
-            type: didWinMatch ? "match_win" : "match_lose",
-            message: didWinMatch ? "🏆 You Won the Match!" : `${matchInfo.opponent.player_name} Won the Match`,
-            subMessage: `Final Score: ${matchInfo.isPlayer1 ? newP1Score : newP2Score} - ${matchInfo.isPlayer1 ? newP2Score : newP1Score}`,
-          });
-
-          if (didWinMatch) play("tournamentVictory");
-
-          // Brief pause to show match result, then proceed
-          setTimeout(async () => {
-            setNotification(null);
-            await handleMatchComplete(matchWinnerStr);
-          }, ROUND_RESULT_DELAY);
-        } else {
           setNotification(null);
           play("roundStart");
-          // Start next round - the player who made the move resets the board
           const deadline = new Date(Date.now() + PHASE_TIME * 1000).toISOString();
           await supabase
             .from('tournament_matches')
@@ -812,9 +811,9 @@ export default function TournamentGame({
               last_bid_result: null,
             })
             .eq('id', currentMatch.id);
-        }
-        setIsProcessing(false);
-      }, ROUND_RESULT_DELAY);
+          setIsProcessing(false);
+        }, ROUND_RESULT_DELAY);
+      }
     } else {
       // Continue playing - start new bidding phase
       const deadline = new Date(Date.now() + PHASE_TIME * 1000).toISOString();
@@ -917,68 +916,42 @@ export default function TournamentGame({
       }
 
       if (!didWin) {
-        // Eliminated player: calculate their finishing position
-        // Position = remaining players + 1 (they just got knocked out)
+        // Eliminated player: immediately show leaderboard
         const finishPosition = remainingPlayersList.length + 1;
+        setNotification(null);
 
-        setNotification({
-          type: "match_lose",
-          message: `Game ended — You finished ${getOrdinal(finishPosition)}`,
-          subMessage: "You've been eliminated from the tournament.",
-        });
-
-        // After delay, show leaderboard for eliminated player
-        setTimeout(() => {
-          setNotification(null);
-          // Build partial rankings from the eliminated player's perspective
-          const winnerPlayer = updatedAllPlayers.find(p => p.id === winnerId);
-          const rankings: { id: string; name: string; position: number; isCurrentPlayer: boolean }[] = [];
-          
-          // Add remaining players as "still playing" (position TBD, but show them above)
-          remainingPlayersList.forEach((p, idx) => {
-            rankings.push({
-              id: p.id,
-              name: p.player_name,
-              position: idx + 1,
-              isCurrentPlayer: p.id === currentPlayerId,
-            });
-          });
-          
-          // Add current eliminated player
+        const rankings: { id: string; name: string; position: number; isCurrentPlayer: boolean }[] = [];
+        remainingPlayersList.forEach((p, idx) => {
           rankings.push({
-            id: loserId,
-            name: updatedAllPlayers.find(p => p.id === loserId)?.player_name || "You",
-            position: finishPosition,
-            isCurrentPlayer: loserId === currentPlayerId,
+            id: p.id,
+            name: p.player_name,
+            position: idx + 1,
+            isCurrentPlayer: p.id === currentPlayerId,
           });
-
-          setTournamentRankings(rankings);
-          setShowTournamentWinner(true);
-        }, ROUND_RESULT_DELAY);
-      } else {
-        // Winner: show advancement message
-        setNotification({
-          type: "match_win",
-          message: "🎉 Match Won!",
-          subMessage: "Advancing to next round...",
+        });
+        rankings.push({
+          id: loserId,
+          name: updatedAllPlayers.find(p => p.id === loserId)?.player_name || "You",
+          position: finishPosition,
+          isCurrentPlayer: loserId === currentPlayerId,
         });
 
-        // After delay, advance winner to next match
-        setTimeout(async () => {
-          setNotification(null);
-          
-          // Reset ready state for next match
-          await supabase
-            .from('tournament_players')
-            .update({ is_ready: false })
-            .eq('id', currentPlayerId);
-          
-          setIsReady(false);
-          setCurrentMatch(null);
-          byeCheckDoneRef.current = false;
-          setHasByeAdvancement(false);
-          fetchData();
-        }, ROUND_RESULT_DELAY);
+        setTournamentRankings(rankings);
+        setShowTournamentWinner(true);
+      } else {
+        // Winner: immediately advance to next match
+        setNotification(null);
+
+        await supabase
+          .from('tournament_players')
+          .update({ is_ready: false })
+          .eq('id', currentPlayerId);
+
+        setIsReady(false);
+        setCurrentMatch(null);
+        byeCheckDoneRef.current = false;
+        setHasByeAdvancement(false);
+        fetchData();
       }
     }
   }, [currentMatch, matchInfo, currentPlayerId, allPlayers, totalPlayerCount, tournamentId, fetchData]);
