@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Copy, Check, Users, Trophy, Crown, Loader2, Zap } from "lucide-react";
+import { ArrowLeft, Copy, Check, Users, Trophy, Crown, Loader2, Zap, Link2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import FloatingBackground from "@/components/ui/FloatingBackground";
 import ConfirmLeaveDialog from "@/components/ui/ConfirmLeaveDialog";
@@ -396,6 +396,28 @@ export default function TournamentLobby({
               </motion.div>
             ))}
           </div>
+
+          {/* Shareable invite link */}
+          <div className="mt-4 pt-3 border-t border-border">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Invite link</span>
+              <button
+                onClick={() => {
+                  const link = `${window.location.origin}/?join=${tournamentCode}`;
+                  navigator.clipboard.writeText(link);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2000);
+                }}
+                className="flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 transition-colors"
+              >
+                <Link2 className="w-4 h-4" />
+                Copy Link
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1 truncate">
+              {window.location.origin}/?join={tournamentCode}
+            </p>
+          </div>
         </motion.div>
 
         {/* Player Count */}
@@ -502,6 +524,20 @@ export default function TournamentLobby({
               </>
             )}
           </motion.button>
+        )}
+
+        {/* Waiting for host notice (non-host players) */}
+        {!isHost && tournamentStatus === 'waiting' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="game-card text-center mb-6"
+          >
+            <Loader2 className="w-8 h-8 mx-auto mb-2 text-primary animate-spin" />
+            <p className="font-medium">Waiting for host to start the tournament</p>
+            <p className="text-sm text-muted-foreground mt-1">Sit tight — the game will begin once the host is ready.</p>
+          </motion.div>
         )}
 
         {tournamentStatus === 'in_progress' && (

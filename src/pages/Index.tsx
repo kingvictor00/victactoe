@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { useSearchParams } from "react-router-dom";
 import LandingPage, { type Difficulty } from "@/components/home/LandingPage";
 import GameBoard from "@/components/game/GameBoard";
 import CreateTournament from "@/components/tournament/CreateTournament";
@@ -21,20 +22,33 @@ interface TournamentSession {
 const SESSION_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
 
 const Index = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [gameMode, setGameMode] = useState<GameMode>("landing");
   const [difficulty, setDifficulty] = useState<Difficulty>("medium");
   const [tournamentCode, setTournamentCode] = useState<string | null>(null);
   const [tournamentId, setTournamentId] = useState<string | null>(null);
   const [currentPlayerId, setCurrentPlayerId] = useState<string | null>(null);
   const [isHost, setIsHost] = useState(false);
+  const [initialJoinCode, setInitialJoinCode] = useState<string | null>(null);
+
+  // Handle ?join=CODE deep link
+  useEffect(() => {
+    const joinCode = searchParams.get("join");
+    if (joinCode && joinCode.length === 6) {
+      setInitialJoinCode(joinCode.toUpperCase());
+      setGameMode("join-tournament");
+      // Clean up the URL
+      setSearchParams({}, { replace: true });
+    }
+  }, []);
 
   // Restore session on mount
   useEffect(() => {
+    if (initialJoinCode) return; // Don't restore session if deep-linking
     const savedSession = sessionStorage.getItem('tournament_session');
     if (savedSession) {
       try {
         const session: TournamentSession = JSON.parse(savedSession);
-        // Check if session is still valid (not expired)
         if (Date.now() - session.timestamp < SESSION_EXPIRY) {
           setTournamentId(session.tournamentId);
           setTournamentCode(session.tournamentCode);
@@ -42,7 +56,6 @@ const Index = () => {
           setCurrentPlayerId(session.currentPlayerId);
           setGameMode("tournament-lobby");
         } else {
-          // Session expired, clear it
           sessionStorage.removeItem('tournament_session');
         }
       } catch (e) {
@@ -50,7 +63,6 @@ const Index = () => {
       }
     }
 
-    // Save state periodically to handle minimizing
     const saveInterval = setInterval(() => {
       const currentSession = sessionStorage.getItem('tournament_session');
       if (currentSession) {
@@ -58,14 +70,12 @@ const Index = () => {
           const session: TournamentSession = JSON.parse(currentSession);
           session.timestamp = Date.now();
           sessionStorage.setItem('tournament_session', JSON.stringify(session));
-        } catch (e) {
-          // Ignore
-        }
+        } catch (e) {}
       }
-    }, 30000); // Update timestamp every 30 seconds
+    }, 30000);
 
     return () => clearInterval(saveInterval);
-  }, []);
+  }, [initialJoinCode]);
 
   const handlePlayComputer = (selectedDifficulty: Difficulty) => {
     setDifficulty(selectedDifficulty);
@@ -172,8 +182,9 @@ const Index = () => {
           transition={{ duration: 0.3 }}
         >
           <JoinTournament 
-            onBack={() => setGameMode("landing")} 
+            onBack={() => { setInitialJoinCode(null); setGameMode("landing"); }} 
             onJoined={handleJoinedTournament}
+            initialCode={initialJoinCode || undefined}
           />
         </motion.div>
       )}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { ArrowLeft, Users, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,10 +9,11 @@ import ConfirmLeaveDialog from "@/components/ui/ConfirmLeaveDialog";
 interface JoinTournamentProps {
   onBack: () => void;
   onJoined: (tournamentId: string, tournamentCode: string, playerId: string) => void;
+  initialCode?: string;
 }
 
-export default function JoinTournament({ onBack, onJoined }: JoinTournamentProps) {
-  const [code, setCode] = useState("");
+export default function JoinTournament({ onBack, onJoined, initialCode }: JoinTournamentProps) {
+  const [code, setCode] = useState(initialCode || "");
   const [playerName, setPlayerName] = useState("");
   const [isJoining, setIsJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,8 +27,16 @@ export default function JoinTournament({ onBack, onJoined }: JoinTournamentProps
     isUnlimited: boolean;
   } | null>(null);
 
-  const handleCodeSubmit = async () => {
-    if (code.length !== 6) {
+  // Auto-submit if initialCode is provided
+  useEffect(() => {
+    if (initialCode && initialCode.length === 6) {
+      handleCodeSubmit(initialCode);
+    }
+  }, []);
+
+  const handleCodeSubmit = async (codeOverride?: string) => {
+    const codeToUse = codeOverride || code;
+    if (codeToUse.length !== 6) {
       setError("Code must be 6 characters");
       return;
     }
@@ -40,7 +49,7 @@ export default function JoinTournament({ onBack, onJoined }: JoinTournamentProps
       const { data: tournament, error: tournamentError } = await supabase
         .from('tournaments')
         .select('id, name, max_players, is_unlimited, status')
-        .eq('code', code.toUpperCase())
+        .eq('code', codeToUse.toUpperCase())
         .single();
 
       if (tournamentError || !tournament) {
@@ -225,7 +234,7 @@ export default function JoinTournament({ onBack, onJoined }: JoinTournamentProps
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              onClick={handleCodeSubmit}
+              onClick={() => handleCodeSubmit()}
               disabled={code.length !== 6 || isJoining}
               className="btn-game-primary w-full flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
