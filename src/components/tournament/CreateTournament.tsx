@@ -26,7 +26,7 @@ function generateCode(): string {
 export default function CreateTournament({ onBack, onTournamentCreated }: CreateTournamentProps) {
   const [roomName, setRoomName] = useState("");
   const [hostName, setHostName] = useState("");
-  const [maxPlayers, setMaxPlayers] = useState<number | "unlimited">(16);
+  const [maxPlayers, setMaxPlayers] = useState<number | "flexible">(16);
   const [isCreating, setIsCreating] = useState(false);
   const [step, setStep] = useState<'setup' | 'name'>('setup');
   const [showConfirmLeave, setShowConfirmLeave] = useState(false);
