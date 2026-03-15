@@ -29,9 +29,9 @@ export const useTournamentWatchdog = (
   onRefresh: () => void
 ) => {
   const lastStateChangeRef = useRef<number>(Date.now());
-  const watchdogTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const biddingFallbackRef = useRef<NodeJS.Timeout | null>(null);
-  const moveFallbackRef = useRef<NodeJS.Timeout | null>(null);
+  const watchdogTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const biddingFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const moveFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   const {
     matchId,
