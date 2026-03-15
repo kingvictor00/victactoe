@@ -50,8 +50,8 @@ export default function CreateTournament({ onBack, onTournamentCreated }: Create
         .insert({
           name: roomName.trim(),
           code,
-          max_players: maxPlayers === "unlimited" ? 9999 : maxPlayers,
-          is_unlimited: maxPlayers === "unlimited",
+          max_players: maxPlayers === "flexible" ? 9999 : maxPlayers,
+          is_unlimited: maxPlayers === "flexible",
           status: 'waiting'
         })
         .select()
