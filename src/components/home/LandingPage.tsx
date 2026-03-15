@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Users, Gamepad2, Trophy, Hash, Brain, Sparkles, Flame, Lightbulb, Menu, MessageSquare, GitBranch, UserPlus, Send, Loader2, ChevronDown } from "lucide-react";
 import FloatingBackground from "@/components/ui/FloatingBackground";
@@ -28,6 +28,38 @@ interface LandingPageProps {
   onPlayComputer: (difficulty: Difficulty) => void;
   onCreateTournament: () => void;
   onJoinTournament: () => void;
+}
+
+function ScrollArrow() {
+  const [visible, setVisible] = useState(true);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollBottom = window.innerHeight + window.scrollY;
+      const docHeight = document.documentElement.scrollHeight;
+      setVisible(docHeight - scrollBottom > 50);
+    };
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("resize", handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", handleScroll);
+    };
+  }, []);
+
+  if (!visible) return null;
+
+  return (
+    <motion.div
+      aria-hidden="true"
+      className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 pointer-events-none"
+      animate={{ y: [0, 8, 0], opacity: [0.35, 0.9, 0.35] }}
+      transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+    >
+      <ChevronDown className="w-6 h-6 text-muted-foreground" />
+    </motion.div>
+  );
 }
 
 export default function LandingPage({ onPlayComputer, onCreateTournament, onJoinTournament }: LandingPageProps) {
@@ -95,15 +127,8 @@ export default function LandingPage({ onPlayComputer, onCreateTournament, onJoin
     <div className="min-h-screen bg-background relative">
       <FloatingBackground />
 
-      {/* Scroll Hint */}
-      <motion.div
-        aria-hidden="true"
-        className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 pointer-events-none"
-        animate={{ y: [0, 8, 0], opacity: [0.35, 0.9, 0.35] }}
-        transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
-      >
-        <ChevronDown className="w-6 h-6 text-muted-foreground" />
-      </motion.div>
+      {/* Scroll Hint - auto-hides when at bottom */}
+      <ScrollArrow />
       
       {/* Top Navigation Bar */}
       <div className="fixed top-0 left-0 right-0 z-50 px-4 py-3">

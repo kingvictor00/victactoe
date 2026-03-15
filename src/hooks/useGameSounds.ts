@@ -16,7 +16,7 @@ class SoundGenerator {
     return this.ctx;
   }
 
-  private playTone(freq: number, duration: number, type: OscillatorType = "sine", volume = 0.15) {
+  private playTone(freq: number, duration: number, type: OscillatorType = "sine", volume = 0.5) {
     const ctx = this.getCtx();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -30,7 +30,7 @@ class SoundGenerator {
     osc.stop(ctx.currentTime + duration);
   }
 
-  private playNoise(duration: number, volume = 0.05) {
+  private playNoise(duration: number, volume = 0.2) {
     const ctx = this.getCtx();
     const bufferSize = ctx.sampleRate * duration;
     const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
@@ -48,44 +48,44 @@ class SoundGenerator {
   }
 
   markPlace() {
-    this.playTone(880, 0.1, "sine", 0.12);
-    setTimeout(() => this.playTone(1100, 0.08, "sine", 0.08), 50);
+    this.playTone(880, 0.15, "sine", 0.45);
+    setTimeout(() => this.playTone(1100, 0.12, "sine", 0.35), 50);
   }
 
   bidPlace() {
-    this.playTone(523, 0.08, "triangle", 0.1);
-    setTimeout(() => this.playTone(659, 0.08, "triangle", 0.1), 80);
-    setTimeout(() => this.playTone(784, 0.1, "triangle", 0.1), 160);
+    this.playTone(523, 0.12, "triangle", 0.4);
+    setTimeout(() => this.playTone(659, 0.12, "triangle", 0.4), 80);
+    setTimeout(() => this.playTone(784, 0.15, "triangle", 0.4), 160);
   }
 
   turnChange() {
-    this.playTone(440, 0.12, "sine", 0.08);
-    setTimeout(() => this.playTone(554, 0.1, "sine", 0.06), 100);
+    this.playTone(440, 0.15, "sine", 0.35);
+    setTimeout(() => this.playTone(554, 0.12, "sine", 0.3), 100);
   }
 
   win() {
     const notes = [523, 659, 784, 1047];
     notes.forEach((freq, i) => {
-      setTimeout(() => this.playTone(freq, 0.2, "sine", 0.12), i * 120);
+      setTimeout(() => this.playTone(freq, 0.25, "sine", 0.5), i * 120);
     });
   }
 
   lose() {
-    this.playTone(440, 0.3, "sawtooth", 0.06);
-    setTimeout(() => this.playTone(370, 0.4, "sawtooth", 0.05), 200);
+    this.playTone(440, 0.35, "sawtooth", 0.3);
+    setTimeout(() => this.playTone(370, 0.45, "sawtooth", 0.25), 200);
   }
 
   roundStart() {
-    this.playTone(660, 0.1, "square", 0.06);
-    setTimeout(() => this.playTone(880, 0.15, "square", 0.08), 120);
+    this.playTone(660, 0.15, "square", 0.3);
+    setTimeout(() => this.playTone(880, 0.2, "square", 0.35), 120);
   }
 
   tournamentVictory() {
     const notes = [523, 659, 784, 880, 1047, 1319, 1568];
     notes.forEach((freq, i) => {
-      setTimeout(() => this.playTone(freq, 0.25, "sine", 0.1 + i * 0.01), i * 100);
+      setTimeout(() => this.playTone(freq, 0.3, "sine", 0.4 + i * 0.02), i * 100);
     });
-    setTimeout(() => this.playNoise(0.3, 0.04), 700);
+    setTimeout(() => this.playNoise(0.4, 0.15), 700);
   }
 }
 

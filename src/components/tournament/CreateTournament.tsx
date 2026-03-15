@@ -248,12 +248,12 @@ export default function CreateTournament({ onBack, onTournamentCreated }: Create
             }`}
           >
             <Shuffle className="w-5 h-5" />
-            n/n Mode
+            n/256 Mode
           </button>
           
           <p className="text-xs text-muted-foreground mt-3 text-center">
             {maxPlayers === "flexible" 
-              ? "Start with any number of players — BYEs are assigned automatically to balance the bracket"
+              ? "Start with any number of players up to 256 — BYEs are assigned automatically to balance the bracket"
               : maxPlayers === 256
                 ? "Maximum supported tournament size (256 players)"
                 : `Tournament will accommodate ${maxPlayers} players in bracket format`}
