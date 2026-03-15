@@ -30,7 +30,7 @@ class SoundGenerator {
     osc.stop(ctx.currentTime + duration);
   }
 
-  private playNoise(duration: number, volume = 0.05) {
+  private playNoise(duration: number, volume = 0.2) {
     const ctx = this.getCtx();
     const bufferSize = ctx.sampleRate * duration;
     const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
