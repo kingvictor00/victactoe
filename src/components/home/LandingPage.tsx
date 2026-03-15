@@ -95,15 +95,8 @@ export default function LandingPage({ onPlayComputer, onCreateTournament, onJoin
     <div className="min-h-screen bg-background relative">
       <FloatingBackground />
 
-      {/* Scroll Hint */}
-      <motion.div
-        aria-hidden="true"
-        className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 pointer-events-none"
-        animate={{ y: [0, 8, 0], opacity: [0.35, 0.9, 0.35] }}
-        transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
-      >
-        <ChevronDown className="w-6 h-6 text-muted-foreground" />
-      </motion.div>
+      {/* Scroll Hint - auto-hides when at bottom */}
+      <ScrollArrow />
       
       {/* Top Navigation Bar */}
       <div className="fixed top-0 left-0 right-0 z-50 px-4 py-3">
