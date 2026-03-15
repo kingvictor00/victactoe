@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Trophy, Users, Infinity } from "lucide-react";
+import { ArrowLeft, Trophy, Users, Shuffle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import FloatingBackground from "@/components/ui/FloatingBackground";
