@@ -11,8 +11,8 @@ interface CreateTournamentProps {
   onTournamentCreated: (code: string, tournamentId: string, playerId: string) => void;
 }
 
-// Powers of 2 from 2 to 32
-const PLAYER_OPTIONS = [2, 4, 8, 16, 32];
+// Powers of 2 from 2 to 256
+const PLAYER_OPTIONS = [2, 4, 8, 16, 32, 64, 128, 256];
 
 function generateCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
