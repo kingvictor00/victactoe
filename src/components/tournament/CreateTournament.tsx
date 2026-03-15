@@ -222,7 +222,7 @@ export default function CreateTournament({ onBack, onTournamentCreated }: Create
             Number of Players
           </label>
           
-          <div className="grid grid-cols-5 gap-2 mb-3">
+          <div className="grid grid-cols-4 gap-2 mb-3">
             {PLAYER_OPTIONS.map((count) => (
               <button
                 key={count}
@@ -238,23 +238,25 @@ export default function CreateTournament({ onBack, onTournamentCreated }: Create
             ))}
           </div>
           
-          {/* Unlimited Option */}
+          {/* n/n Flexible Mode */}
           <button
-            onClick={() => setMaxPlayers("unlimited")}
+            onClick={() => setMaxPlayers("flexible")}
             className={`w-full py-3 rounded-xl font-medium transition-all flex items-center justify-center gap-2 ${
-              maxPlayers === "unlimited"
+              maxPlayers === "flexible"
                 ? "bg-gradient-to-r from-primary to-secondary text-primary-foreground"
                 : "bg-muted hover:bg-muted/80 text-muted-foreground"
             }`}
           >
-            <Infinity className="w-5 h-5" />
-            Unlimited Players
+            <Shuffle className="w-5 h-5" />
+            n/n Mode
           </button>
           
           <p className="text-xs text-muted-foreground mt-3 text-center">
-            {maxPlayers === "unlimited" 
-              ? "Any number of players can join until you start the tournament"
-              : `Tournament will accommodate ${maxPlayers} players in bracket format`}
+            {maxPlayers === "flexible" 
+              ? "Start with any number of players — BYEs are assigned automatically to balance the bracket"
+              : maxPlayers === 256
+                ? "Maximum supported tournament size (256 players)"
+                : `Tournament will accommodate ${maxPlayers} players in bracket format`}
           </p>
         </motion.div>
 

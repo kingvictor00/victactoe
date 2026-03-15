@@ -120,7 +120,7 @@ export default function TournamentGame({
   const [hasByeAdvancement, setHasByeAdvancement] = useState(false);
   const hasSubmittedBidRef = useRef(false);
   const isResolvingBidsRef = useRef(false);
-  const coinTossTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const coinTossTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSeenBidResultRef = useRef<string | null>(null);
   const byeCheckDoneRef = useRef(false);
   const { toast } = useToast();
