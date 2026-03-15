@@ -16,7 +16,7 @@ class SoundGenerator {
     return this.ctx;
   }
 
-  private playTone(freq: number, duration: number, type: OscillatorType = "sine", volume = 0.15) {
+  private playTone(freq: number, duration: number, type: OscillatorType = "sine", volume = 0.5) {
     const ctx = this.getCtx();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
