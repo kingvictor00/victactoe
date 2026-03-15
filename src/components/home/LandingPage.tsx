@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Users, Gamepad2, Trophy, Hash, Brain, Sparkles, Flame, Lightbulb, Menu, MessageSquare, GitBranch, UserPlus, Send, Loader2, ChevronDown } from "lucide-react";
 import FloatingBackground from "@/components/ui/FloatingBackground";
