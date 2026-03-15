@@ -248,7 +248,7 @@ export default function CreateTournament({ onBack, onTournamentCreated }: Create
             }`}
           >
             <Shuffle className="w-5 h-5" />
-            n/n Mode
+            n/256 Mode
           </button>
           
           <p className="text-xs text-muted-foreground mt-3 text-center">
