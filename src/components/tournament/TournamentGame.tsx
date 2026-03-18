@@ -122,6 +122,7 @@ export default function TournamentGame({
   const isResolvingBidsRef = useRef(false);
   const coinTossTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSeenBidResultRef = useRef<string | null>(null);
+  const lastSeenRoundWinnerRef = useRef<string | null>(null);
   const byeCheckDoneRef = useRef(false);
   const { toast } = useToast();
   const { isMuted, toggleMute, play } = useGameSounds();
