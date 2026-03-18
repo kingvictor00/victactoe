@@ -382,23 +382,26 @@ export default function TournamentGame({
 
   // Auto-resolve bids when both are present OR when bid result already exists from P1
   useEffect(() => {
-    if (!currentMatch || !matchInfo || isProcessing) return;
+    if (!currentMatch || !matchInfo) return;
     
-    // If we're showing coin toss animation and the result comes through, process it
+    // P2: If we're showing coin toss animation and P1's authoritative result arrives via DB,
+    // use that result directly — never generate our own
     if (notification?.type === "coin_toss_animation" && currentMatch.last_bid_result && !currentMatch.is_bidding_phase) {
-      // P1 has resolved the tie - P2 should show the result
       const resultKey = `${currentMatch.id}-${currentMatch.current_round}-${JSON.stringify(currentMatch.last_bid_result)}`;
       if (resultKey !== lastSeenBidResultRef.current) {
         lastSeenBidResultRef.current = resultKey;
         
-        // Clear any pending timeout
+        // Clear any pending fallback timeout — we got the authoritative result
         if (coinTossTimeoutRef.current) {
           clearTimeout(coinTossTimeoutRef.current);
           coinTossTimeoutRef.current = null;
         }
         
+        // Use the authoritative winner from DB (bid_winner / current_turn),
+        // NOT last_bid_result.winner which could have serialization issues
+        const authoritativeWinner = currentMatch.bid_winner as Player;
         const bidResult = currentMatch.last_bid_result;
-        const didWin = bidResult.winner === matchInfo.mySymbol;
+        const didWin = authoritativeWinner === matchInfo.mySymbol;
         const myBidAmount = matchInfo.isPlayer1 ? bidResult.player1Bid : bidResult.player2Bid;
         
         setNotification({
@@ -416,18 +419,55 @@ export default function TournamentGame({
       return;
     }
     
-    if (!isBiddingPhase || isResolvingBidsRef.current) return;
+    // P2: If bidding phase ended (P1 resolved) and we missed the coin toss animation,
+    // still process the result to stay in sync
+    if (!matchInfo.isPlayer1 && !currentMatch.is_bidding_phase && currentMatch.last_bid_result && currentMatch.bid_winner) {
+      const resultKey = `${currentMatch.id}-${currentMatch.current_round}-${JSON.stringify(currentMatch.last_bid_result)}`;
+      if (resultKey !== lastSeenBidResultRef.current && !isProcessing && !notification) {
+        lastSeenBidResultRef.current = resultKey;
+        
+        if (coinTossTimeoutRef.current) {
+          clearTimeout(coinTossTimeoutRef.current);
+          coinTossTimeoutRef.current = null;
+        }
+        
+        const authoritativeWinner = currentMatch.bid_winner as Player;
+        const bidResult = currentMatch.last_bid_result;
+        const didWin = authoritativeWinner === matchInfo.mySymbol;
+        const myBidAmount = matchInfo.isPlayer1 ? bidResult.player1Bid : bidResult.player2Bid;
+        const oppBidAmount = matchInfo.isPlayer1 ? bidResult.player2Bid : bidResult.player1Bid;
+        const isTie = bidResult.player1Bid === bidResult.player2Bid;
+        
+        setNotification({
+          type: isTie ? "tie_coin_toss" : (didWin ? "bid_win" : "bid_lose"),
+          message: isTie 
+            ? "🪙 Coin Toss Result!" 
+            : (didWin ? "🎯 You Won the Bid!" : `💻 ${matchInfo.opponent.player_name} Won!`),
+          subMessage: isTie 
+            ? `Both bid $${myBidAmount}. ${didWin ? "You" : matchInfo.opponent.player_name} won the toss!`
+            : `You bid $${myBidAmount} vs $${oppBidAmount}`,
+        });
+        
+        setTimeout(() => {
+          setNotification(null);
+          play("turnChange");
+        }, BID_RESULT_DELAY);
+      }
+      return;
+    }
+    
+    if (!isBiddingPhase || isResolvingBidsRef.current || isProcessing) return;
     
     const p1Bid = currentMatch.player1_bid;
     const p2Bid = currentMatch.player2_bid;
     
-    // Both bids are in - resolve them
+    // Both bids are in - only P1 resolves to avoid race conditions
     if (p1Bid !== null && p2Bid !== null) {
       isResolvingBidsRef.current = true;
-      setNotification(null); // Clear any stale "waiting" notification
+      setNotification(null);
       resolveBids(p1Bid, p2Bid);
     }
-  }, [currentMatch?.player1_bid, currentMatch?.player2_bid, currentMatch?.last_bid_result, currentMatch?.is_bidding_phase, isBiddingPhase, matchInfo, isProcessing, notification?.type]);
+  }, [currentMatch?.player1_bid, currentMatch?.player2_bid, currentMatch?.last_bid_result, currentMatch?.is_bidding_phase, currentMatch?.bid_winner, isBiddingPhase, matchInfo, isProcessing, notification?.type]);
 
   // Clear BYE state when a match is found
   useEffect(() => {
