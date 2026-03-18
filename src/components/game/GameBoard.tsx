@@ -563,7 +563,7 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
           {/* Player O (Computer) */}
           <div className={`flex-1 rounded-xl p-2.5 bg-card transition-all ${currentBidder === "O" ? "ring-2 ring-secondary" : ""}`} style={{ boxShadow: 'var(--shadow-card)' }}>
             <div className="flex items-center gap-2 mb-1">
-              <VoxelAvatar seed="cpu-opponent" size={28} />
+              <RobohashAvatar seed="cpu-opponent" size={28} />
               <span className="font-medium text-xs">CPU</span>
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
                 difficulty === "easy" ? "bg-green-500/20 text-green-600" :
