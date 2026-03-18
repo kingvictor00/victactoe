@@ -1139,7 +1139,7 @@ export default function TournamentGame({
                 <div className={`flex items-center justify-between p-4 rounded-xl ${!matchInfo.isPlayer1 ? 'bg-primary/10 ring-1 ring-primary' : 'bg-muted'
                   }`}>
                   <div className="flex items-center gap-3">
-                    <VoxelAvatar seed={matchInfo.player2.id} size={40} />
+                    <RobohashAvatar seed={matchInfo.player2.id} size={40} />
                     <div>
                       <p className="font-medium">{matchInfo.player2.player_name}</p>
                       {!matchInfo.isPlayer1 && (
