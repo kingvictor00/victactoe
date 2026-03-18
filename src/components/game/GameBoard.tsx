@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Coins, Clock, Trophy, RotateCcw, Home, ArrowRight, Loader2, Volume2, VolumeX, Music } from "lucide-react";
 import GameOverModal from "./GameOverModal";
-import VoxelAvatar from "@/components/ui/VoxelAvatar";
+import RobohashAvatar from "@/components/ui/RobohashAvatar";
 import { Slider } from "@/components/ui/slider";
 import ConfirmLeaveDialog from "@/components/ui/ConfirmLeaveDialog";
 import { useGameSounds } from "@/hooks/useGameSounds";
@@ -540,7 +540,7 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
           {/* Player X (You) */}
           <div className={`flex-1 rounded-xl p-2.5 bg-card transition-all ${currentBidder === "X" ? "ring-2 ring-primary" : ""}`} style={{ boxShadow: 'var(--shadow-card)' }}>
             <div className="flex items-center gap-2 mb-1">
-              <VoxelAvatar seed="player-x-you" size={28} />
+              <RobohashAvatar seed="player-x-you" size={28} />
               <span className="font-medium text-xs">You</span>
             </div>
             <div className="coin-badge text-xs">
@@ -563,7 +563,7 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
           {/* Player O (Computer) */}
           <div className={`flex-1 rounded-xl p-2.5 bg-card transition-all ${currentBidder === "O" ? "ring-2 ring-secondary" : ""}`} style={{ boxShadow: 'var(--shadow-card)' }}>
             <div className="flex items-center gap-2 mb-1">
-              <VoxelAvatar seed="cpu-opponent" size={28} />
+              <RobohashAvatar seed="cpu-opponent" size={28} />
               <span className="font-medium text-xs">CPU</span>
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
                 difficulty === "easy" ? "bg-green-500/20 text-green-600" :

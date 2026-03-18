@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import FloatingBackground from "@/components/ui/FloatingBackground";
 import ConfirmLeaveDialog from "@/components/ui/ConfirmLeaveDialog";
 import TournamentWinner from "./TournamentWinner";
-import VoxelAvatar from "@/components/ui/VoxelAvatar";
+import RobohashAvatar from "@/components/ui/RobohashAvatar";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import { useTournamentWatchdog } from "@/hooks/useTournamentWatchdog";
@@ -1114,7 +1114,7 @@ export default function TournamentGame({
                 <div className={`flex items-center justify-between p-4 rounded-xl ${matchInfo.isPlayer1 ? 'bg-primary/10 ring-1 ring-primary' : 'bg-muted'
                   }`}>
                   <div className="flex items-center gap-3">
-                    <VoxelAvatar seed={matchInfo.player1.id} size={40} />
+                    <RobohashAvatar seed={matchInfo.player1.id} size={40} />
                     <div>
                       <p className="font-medium">{matchInfo.player1.player_name}</p>
                       {matchInfo.isPlayer1 && (
@@ -1139,7 +1139,7 @@ export default function TournamentGame({
                 <div className={`flex items-center justify-between p-4 rounded-xl ${!matchInfo.isPlayer1 ? 'bg-primary/10 ring-1 ring-primary' : 'bg-muted'
                   }`}>
                   <div className="flex items-center gap-3">
-                    <VoxelAvatar seed={matchInfo.player2.id} size={40} />
+                    <RobohashAvatar seed={matchInfo.player2.id} size={40} />
                     <div>
                       <p className="font-medium">{matchInfo.player2.player_name}</p>
                       {!matchInfo.isPlayer1 && (
@@ -1215,7 +1215,7 @@ export default function TournamentGame({
           {/* Player X */}
           <div className={`flex-1 rounded-xl p-2.5 bg-card transition-all ${bidWinner === "X" ? "ring-2 ring-primary" : ""}`} style={{ boxShadow: 'var(--shadow-card)' }}>
             <div className="flex items-center gap-2 mb-1">
-              <VoxelAvatar seed={matchInfo?.player1.id || "p1"} size={28} />
+              <RobohashAvatar seed={matchInfo?.player1.id || "p1"} size={28} />
               <span className="font-medium text-xs truncate">{matchInfo?.player1.player_name}</span>
               {matchInfo?.isPlayer1 && <span className="text-[10px] text-primary">(You)</span>}
             </div>
@@ -1239,7 +1239,7 @@ export default function TournamentGame({
           {/* Player O */}
           <div className={`flex-1 rounded-xl p-2.5 bg-card transition-all ${bidWinner === "O" ? "ring-2 ring-secondary" : ""}`} style={{ boxShadow: 'var(--shadow-card)' }}>
             <div className="flex items-center gap-2 mb-1">
-              <VoxelAvatar seed={matchInfo?.player2.id || "p2"} size={28} />
+              <RobohashAvatar seed={matchInfo?.player2.id || "p2"} size={28} />
               <span className="font-medium text-xs truncate">{matchInfo?.player2.player_name}</span>
               {!matchInfo?.isPlayer1 && <span className="text-[10px] text-primary">(You)</span>}
             </div>
