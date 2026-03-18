@@ -584,7 +584,7 @@ export default function TournamentGame({
     }
   }, [currentMatch?.winner, currentMatch?.current_round, currentMatch?.player1_score, currentMatch?.player2_score, matchInfo, gameStarted]);
 
-
+  const checkWinner = useCallback((currentBoard: Board, p1Coins: number, p2Coins: number): { winner: Player | "tie" | null; line: number[] | null } => {
     for (const combo of WINNING_COMBINATIONS) {
       const [a, b, c] = combo;
       if (currentBoard[a] && currentBoard[a] === currentBoard[b] && currentBoard[a] === currentBoard[c]) {
