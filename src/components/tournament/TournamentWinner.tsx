@@ -129,7 +129,7 @@ export default function TournamentWinner({
                       {/* Avatar */}
                       <div className="relative mb-1">
                         <div className={`${player.position === 1 ? 'w-16 h-16' : 'w-12 h-12'} rounded-full ${getAvatarRing(player.position, player.isCurrentPlayer)} flex items-center justify-center shadow-lg overflow-hidden`}>
-                          <VoxelAvatar seed={player.id} size={player.position === 1 ? 64 : 48} />
+                          <RobohashAvatar seed={player.id} size={player.position === 1 ? 64 : 48} />
                         </div>
                         {/* Position badge */}
                         <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full ${getBadgeBg(player.position)} flex items-center justify-center text-[10px] font-bold shadow-sm`}>
