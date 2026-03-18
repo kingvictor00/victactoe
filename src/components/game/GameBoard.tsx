@@ -540,7 +540,7 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
           {/* Player X (You) */}
           <div className={`flex-1 rounded-xl p-2.5 bg-card transition-all ${currentBidder === "X" ? "ring-2 ring-primary" : ""}`} style={{ boxShadow: 'var(--shadow-card)' }}>
             <div className="flex items-center gap-2 mb-1">
-              <VoxelAvatar seed="player-x-you" size={28} />
+              <RobohashAvatar seed="player-x-you" size={28} />
               <span className="font-medium text-xs">You</span>
             </div>
             <div className="coin-badge text-xs">
