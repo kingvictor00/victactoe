@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import FloatingBackground from "@/components/ui/FloatingBackground";
 import ConfirmLeaveDialog from "@/components/ui/ConfirmLeaveDialog";
 import TournamentWinner from "./TournamentWinner";
-import VoxelAvatar from "@/components/ui/VoxelAvatar";
+import RobohashAvatar from "@/components/ui/RobohashAvatar";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import { useTournamentWatchdog } from "@/hooks/useTournamentWatchdog";
