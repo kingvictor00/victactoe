@@ -535,7 +535,56 @@ export default function TournamentGame({
     checkForBye();
   }, [tournamentId, currentPlayerId, currentMatch, isLoading, toast]);
 
-  const checkWinner = useCallback((currentBoard: Board, p1Coins: number, p2Coins: number): { winner: Player | "tie" | null; line: number[] | null } => {
+  // Sync round results for non-moving player via realtime updates
+  useEffect(() => {
+    if (!currentMatch || !matchInfo || !gameStarted) return;
+    
+    // When a round winner appears in the match state and we haven't seen it yet
+    if (currentMatch.winner) {
+      const roundKey = `${currentMatch.id}-round${currentMatch.current_round}-${currentMatch.winner}`;
+      if (roundKey === lastSeenRoundWinnerRef.current) return;
+      lastSeenRoundWinnerRef.current = roundKey;
+      
+      const roundWinner = currentMatch.winner as Player | "tie";
+      const didWinRound = roundWinner === matchInfo.mySymbol;
+      const myScore = matchInfo.isPlayer1 ? currentMatch.player1_score : currentMatch.player2_score;
+      const oppScore = matchInfo.isPlayer1 ? currentMatch.player2_score : currentMatch.player1_score;
+      
+      // Only show notification if we're not already showing one (avoid duplicate for the moving player)
+      if (!notification || (notification.type !== "round_win" && notification.type !== "round_lose")) {
+        const winningLine = currentMatch.winning_line ? JSON.parse(currentMatch.winning_line) : null;
+        let winReason = "";
+        if (winningLine) {
+          winReason = "Won by completing three marks";
+        } else if (roundWinner === "tie") {
+          winReason = "Round ended in a tie";
+        } else if (currentMatch.player1_coins < 1 || currentMatch.player2_coins < 1) {
+          winReason = "Won by bankrupting opponent";
+        } else {
+          winReason = "Won by economic advantage";
+        }
+        
+        setNotification({
+          type: didWinRound ? "round_win" : "round_lose",
+          message: roundWinner === "tie" 
+            ? "🤝 Round Tied!" 
+            : (didWinRound ? "🎉 You Won This Round!" : `${matchInfo.opponent.player_name} Won This Round`),
+          subMessage: `${winReason} • Score: ${myScore} - ${oppScore}`,
+        });
+        
+        play(didWinRound ? "win" : "lose");
+      }
+      
+      // Handle match completion for non-moving player
+      if (currentMatch.match_winner && currentMatch.status === 'completed') {
+        const didWinMatch = (currentMatch.match_winner === "player1" && matchInfo.isPlayer1) || 
+                           (currentMatch.match_winner === "player2" && !matchInfo.isPlayer1);
+        if (didWinMatch) play("tournamentVictory");
+      }
+    }
+  }, [currentMatch?.winner, currentMatch?.current_round, currentMatch?.player1_score, currentMatch?.player2_score, matchInfo, gameStarted]);
+
+
     for (const combo of WINNING_COMBINATIONS) {
       const [a, b, c] = combo;
       if (currentBoard[a] && currentBoard[a] === currentBoard[b] && currentBoard[a] === currentBoard[c]) {
