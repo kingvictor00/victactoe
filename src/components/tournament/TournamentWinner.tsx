@@ -177,7 +177,7 @@ export default function TournamentWinner({
 
                       {/* Avatar */}
                       <div className={`w-10 h-10 rounded-full overflow-hidden flex items-center justify-center ${player.isCurrentPlayer ? 'ring-2 ring-primary' : ''}`}>
-                        <VoxelAvatar seed={player.id} size={40} />
+                        <RobohashAvatar seed={player.id} size={40} />
                       </div>
 
                       {/* Name */}
