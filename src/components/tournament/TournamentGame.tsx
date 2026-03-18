@@ -631,112 +631,113 @@ export default function TournamentGame({
     setIsProcessing(true);
 
     const isTie = p1Bid === p2Bid;
-    let bidWinnerSymbol: Player;
 
-    if (p1Bid > p2Bid) {
-      bidWinnerSymbol = "X";
-    } else if (p2Bid > p1Bid) {
-      bidWinnerSymbol = "O";
-    } else {
-      // Tie - fair coin toss using cryptographic random
-      // Player1 determines the result and writes it to the database
-      // Player2 waits for the result with a timeout fallback
-      if (matchInfo.isPlayer1) {
-        bidWinnerSymbol = generateFairCoinToss() ? "X" : "O";
-        
-        // Show coin toss animation for P1 as well
-        setNotification({
-          type: "coin_toss_animation",
-          message: "🪙 Tie! Coin Toss...",
-          subMessage: "Flipping the coin...",
-        });
-        
-        // P1 writes the result after brief animation
-        await new Promise(resolve => setTimeout(resolve, COIN_TOSS_ANIMATION_TIME));
-      } else {
-        // Non-player1 shows animation and waits for realtime OR timeout fallback
-        setNotification({
-          type: "coin_toss_animation",
-          message: "🪙 Tie! Coin Toss...",
-          subMessage: "Flipping the coin...",
-        });
-        
-        // Set a timeout fallback - if P1's result doesn't arrive, generate locally
-        coinTossTimeoutRef.current = setTimeout(() => {
-          // If we're still showing coin toss animation, P1's result didn't arrive
-          // Generate our own result as fallback (this ensures no freeze)
-          const fallbackWinner: Player = generateFairCoinToss() ? "X" : "O";
-          
-          setNotification({
-            type: "tie_coin_toss",
-            message: "🪙 Coin Toss Result!",
-            subMessage: `Both bid $${p2Bid}. ${fallbackWinner === matchInfo.mySymbol ? "You" : matchInfo.opponent.player_name} won the toss!`,
-          });
-          
-          setTimeout(() => {
-            setNotification(null);
-            setIsProcessing(false);
-            play("turnChange");
-          }, COIN_TOSS_ANIMATION_TIME);
-        }, 5000); // 5 second timeout for P1's result
-        
-        setIsProcessing(false);
-        return; // Exit and let realtime or timeout handle the update
-      }
-    }
-
-    const newP1Coins = currentMatch.player1_coins - p1Bid;
-    const newP2Coins = currentMatch.player2_coins - p2Bid;
-    const deadline = new Date(Date.now() + PHASE_TIME * 1000).toISOString();
-
-    const updateData: Record<string, unknown> = {
-      player1_coins: newP1Coins,
-      player2_coins: newP2Coins,
-      bid_winner: bidWinnerSymbol,
-      current_turn: bidWinnerSymbol,
-      is_bidding_phase: false,
-      player1_bid: null,
-      player2_bid: null,
-      phase_deadline: deadline,
-      last_bid_result: {
-        player1Bid: p1Bid,
-        player2Bid: p2Bid,
-        winner: bidWinnerSymbol,
-      },
-    };
-
-    // Only player1 updates to avoid race conditions
+    // Only Player 1 resolves and writes to DB — this is the authoritative path
     if (matchInfo.isPlayer1) {
+      let bidWinnerSymbol: Player;
+
+      if (p1Bid > p2Bid) {
+        bidWinnerSymbol = "X";
+      } else if (p2Bid > p1Bid) {
+        bidWinnerSymbol = "O";
+      } else {
+        // Tie — P1 does the coin toss authoritatively
+        bidWinnerSymbol = generateFairCoinToss() ? "X" : "O";
+
+        // Show coin toss animation for P1
+        setNotification({
+          type: "coin_toss_animation",
+          message: "🪙 Tie! Coin Toss...",
+          subMessage: "Flipping the coin...",
+        });
+
+        await new Promise(resolve => setTimeout(resolve, COIN_TOSS_ANIMATION_TIME));
+      }
+
+      const newP1Coins = currentMatch.player1_coins - p1Bid;
+      const newP2Coins = currentMatch.player2_coins - p2Bid;
+      const deadline = new Date(Date.now() + PHASE_TIME * 1000).toISOString();
+
+      // Write authoritative result to DB
       await supabase
         .from('tournament_matches')
-        .update(updateData)
+        .update({
+          player1_coins: newP1Coins,
+          player2_coins: newP2Coins,
+          bid_winner: bidWinnerSymbol,
+          current_turn: bidWinnerSymbol,
+          is_bidding_phase: false,
+          player1_bid: null,
+          player2_bid: null,
+          phase_deadline: deadline,
+          last_bid_result: {
+            player1Bid: p1Bid,
+            player2Bid: p2Bid,
+            winner: bidWinnerSymbol,
+          },
+        })
         .eq('id', currentMatch.id);
-    }
 
-    const didWin = bidWinnerSymbol === matchInfo.mySymbol;
-    const myBidAmount = matchInfo.isPlayer1 ? p1Bid : p2Bid;
-    const oppBidAmount = matchInfo.isPlayer1 ? p2Bid : p1Bid;
+      // Show result notification for P1
+      const didWin = bidWinnerSymbol === "X"; // P1 is always X
+      const myBidAmount = p1Bid;
+      const oppBidAmount = p2Bid;
 
-    if (isTie) {
-      setNotification({
-        type: "tie_coin_toss",
-        message: "🪙 Tie! Coin Toss...",
-        subMessage: `Both bid $${myBidAmount}. ${didWin ? "You" : matchInfo.opponent.player_name} won the toss!`,
-      });
+      if (isTie) {
+        setNotification({
+          type: "tie_coin_toss",
+          message: "🪙 Coin Toss Result!",
+          subMessage: `Both bid $${myBidAmount}. ${didWin ? "You" : matchInfo.opponent.player_name} won the toss!`,
+        });
+      } else {
+        setNotification({
+          type: didWin ? "bid_win" : "bid_lose",
+          message: didWin ? "🎯 You Won the Bid!" : `💻 ${matchInfo.opponent.player_name} Won!`,
+          subMessage: `You bid $${myBidAmount} vs $${oppBidAmount}`,
+        });
+      }
+
+      setTimeout(() => {
+        setNotification(null);
+        setIsProcessing(false);
+        play("turnChange");
+      }, BID_RESULT_DELAY);
+
     } else {
-      setNotification({
-        type: didWin ? "bid_win" : "bid_lose",
-        message: didWin ? "🎯 You Won the Bid!" : `💻 ${matchInfo.opponent.player_name} Won!`,
-        subMessage: `You bid $${myBidAmount} vs $${oppBidAmount}`,
-      });
-    }
+      // Player 2: Do NOT resolve independently.
+      // Show animation for tie, then wait for P1's authoritative result via realtime/polling.
+      if (isTie) {
+        setNotification({
+          type: "coin_toss_animation",
+          message: "🪙 Tie! Coin Toss...",
+          subMessage: "Flipping the coin...",
+        });
 
-    // After showing bid result, clear notification and let static turn indicators take over
-    setTimeout(() => {
-      setNotification(null);
+        // Fallback: if P1's result doesn't arrive within timeout, re-fetch from DB
+        coinTossTimeoutRef.current = setTimeout(async () => {
+          // Re-fetch match state from DB to get P1's authoritative result
+          const { data: freshMatch } = await supabase
+            .from('tournament_matches')
+            .select('*')
+            .eq('id', currentMatch.id)
+            .single();
+
+          if (freshMatch && freshMatch.bid_winner && !freshMatch.is_bidding_phase) {
+            // P1's result is in DB — use it
+            setCurrentMatch(freshMatch as unknown as TournamentMatch);
+          } else {
+            // P1 hasn't written yet — keep waiting, polling will pick it up
+            console.log('[CoinToss] P1 result not yet in DB, polling will handle it');
+          }
+        }, COIN_TOSS_TIMEOUT);
+      } else {
+        // Non-tie: P2 just waits for P1's DB write via realtime/polling
+        // The useEffect above will show the notification when the result arrives
+      }
+
+      // Don't clear isProcessing — the useEffect handler will do that when P1's result arrives
       setIsProcessing(false);
-      play(didWin ? "turnChange" : "turnChange");
-    }, BID_RESULT_DELAY);
+    }
   }, [currentMatch, matchInfo]);
 
   const makeMove = useCallback(async (index: number) => {
