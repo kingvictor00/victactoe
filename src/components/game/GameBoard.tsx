@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Coins, Clock, Trophy, RotateCcw, Home, ArrowRight, Loader2, Volume2, VolumeX, Music } from "lucide-react";
 import GameOverModal from "./GameOverModal";
-import VoxelAvatar from "@/components/ui/VoxelAvatar";
+import RobohashAvatar from "@/components/ui/RobohashAvatar";
 import { Slider } from "@/components/ui/slider";
 import ConfirmLeaveDialog from "@/components/ui/ConfirmLeaveDialog";
 import { useGameSounds } from "@/hooks/useGameSounds";
