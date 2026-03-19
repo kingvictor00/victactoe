@@ -850,6 +850,7 @@ export default function TournamentGame({
         if (didWinMatch) play("tournamentVictory");
 
         // Immediately proceed to match completion and leaderboard
+        hasHandledMatchEndRef.current = true;
         setNotification(null);
         setIsProcessing(false);
         await handleMatchComplete(matchWinnerStr);
