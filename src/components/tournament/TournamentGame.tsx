@@ -1022,7 +1022,35 @@ export default function TournamentGame({
     }
   }, [currentMatch, matchInfo, currentPlayerId, allPlayers, totalPlayerCount, tournamentId, fetchData]);
 
-  const handleReady = async () => {
+  // Detect match completion from remote updates (forfeit, or opponent made winning move)
+  // This ensures ALL players transition to leaderboard when match ends
+  useEffect(() => {
+    if (!currentMatch || !matchInfo || hasHandledMatchEndRef.current || showTournamentWinner) return;
+    
+    if (currentMatch.match_winner && currentMatch.status === 'completed') {
+      hasHandledMatchEndRef.current = true;
+      
+      const winnerId = currentMatch.match_winner === "player1" ? currentMatch.player1_id : currentMatch.player2_id;
+      const didWin = winnerId === currentPlayerId;
+      
+      // Check if this was a forfeit (no round winner set — opponent left mid-game)
+      const isForfeit = !currentMatch.winner;
+      
+      if (isForfeit && didWin) {
+        setNotification({
+          type: "opponent_forfeit",
+          message: "🏃 Opponent Forfeited!",
+          subMessage: `${matchInfo.opponent.player_name} has left the game. You win!`,
+        });
+      }
+      
+      // Immediately transition to leaderboard for ALL players
+      setNotification(null);
+      setIsProcessing(false);
+      handleMatchComplete(currentMatch.match_winner as "player1" | "player2");
+    }
+  }, [currentMatch?.match_winner, currentMatch?.status, matchInfo, currentPlayerId, showTournamentWinner, handleMatchComplete]);
+
     if (isReady) return;
 
     setIsReady(true);
