@@ -1051,6 +1051,7 @@ export default function TournamentGame({
     }
   }, [currentMatch?.match_winner, currentMatch?.status, matchInfo, currentPlayerId, showTournamentWinner, handleMatchComplete]);
 
+  const handleReady = async () => {
     if (isReady) return;
 
     setIsReady(true);
