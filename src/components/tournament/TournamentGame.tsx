@@ -318,34 +318,35 @@ export default function TournamentGame({
     checkAndStartGame();
   }, [currentMatch, matchInfo, toast]);
 
-  // Detect opponent forfeit - when match_winner is set unexpectedly
-  const hasHandledForfeitRef = useRef(false);
+  // Detect match completion from remote updates (forfeit, or opponent made winning move)
+  // This ensures ALL players transition to leaderboard when match ends
+  const hasHandledMatchEndRef = useRef(false);
   useEffect(() => {
-    if (!currentMatch || !matchInfo || hasHandledForfeitRef.current || showTournamentWinner) return;
+    if (!currentMatch || !matchInfo || hasHandledMatchEndRef.current || showTournamentWinner) return;
     
-    // If match has a winner but we didn't trigger it, opponent forfeited
     if (currentMatch.match_winner && currentMatch.status === 'completed') {
+      hasHandledMatchEndRef.current = true;
+      
       const winnerId = currentMatch.match_winner === "player1" ? currentMatch.player1_id : currentMatch.player2_id;
       const didWin = winnerId === currentPlayerId;
       
-      if (didWin && !isProcessing) {
-        hasHandledForfeitRef.current = true;
-        
+      // Check if this was a forfeit (no round winner set — opponent left mid-game)
+      const isForfeit = !currentMatch.winner;
+      
+      if (isForfeit && didWin) {
         setNotification({
           type: "opponent_forfeit",
           message: "🏃 Opponent Forfeited!",
           subMessage: `${matchInfo.opponent.player_name} has left the game. You win!`,
         });
-        
-        // Immediately trigger match complete flow - no delay
-        setNotification(null);
-        handleMatchComplete(currentMatch.match_winner as "player1" | "player2");
-      } else if (!didWin) {
-        // We lost (we forfeited or were already going to results)
-        hasHandledForfeitRef.current = true;
       }
+      
+      // Immediately transition to leaderboard for ALL players
+      setNotification(null);
+      setIsProcessing(false);
+      handleMatchComplete(currentMatch.match_winner as "player1" | "player2");
     }
-  }, [currentMatch?.match_winner, currentMatch?.status, matchInfo, currentPlayerId, isProcessing, showTournamentWinner]);
+  }, [currentMatch?.match_winner, currentMatch?.status, matchInfo, currentPlayerId, showTournamentWinner, handleMatchComplete]);
 
   // Timer effect
   useEffect(() => {
