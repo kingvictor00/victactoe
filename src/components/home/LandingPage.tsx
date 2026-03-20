@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, Gamepad2, Trophy, Hash, Brain, Sparkles, Flame, Lightbulb, Menu, MessageSquare, GitBranch, UserPlus, Send, Loader2, ChevronDown } from "lucide-react";
+import { Users, Gamepad2, Trophy, Hash, Brain, Sparkles, Flame, Lightbulb, Menu, MessageSquare, GitBranch, UserPlus, Send, Loader2, ChevronDown, Sun, Moon } from "lucide-react";
+import { useTheme } from "@/components/ThemeProvider";
 import FloatingBackground from "@/components/ui/FloatingBackground";
 import {
   DropdownMenu,
@@ -63,6 +64,7 @@ function ScrollArrow() {
 }
 
 export default function LandingPage({ onPlayComputer, onCreateTournament, onJoinTournament }: LandingPageProps) {
+  const { theme, toggleTheme } = useTheme();
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>("medium");
   const [showHowItWorks, setShowHowItWorks] = useState(false);
   const [showSeedingRules, setShowSeedingRules] = useState(false);
@@ -157,6 +159,15 @@ export default function LandingPage({ onPlayComputer, onCreateTournament, onJoin
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48 bg-card border-border">
+                <DropdownMenuItem onClick={toggleTheme} className="cursor-pointer">
+                  {theme === "dark" ? (
+                    <Sun className="w-4 h-4 mr-2 text-amber-500" />
+                  ) : (
+                    <Moon className="w-4 h-4 mr-2 text-primary" />
+                  )}
+                  {theme === "dark" ? "Light Mode" : "Dark Mode"}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => setShowSeedingRules(true)} className="cursor-pointer">
                   <GitBranch className="w-4 h-4 mr-2" />
                   Seeding Rules
