@@ -211,13 +211,14 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
       return Math.max(1, Math.min(Math.floor(Math.random() * Math.max(1, maxBid * 0.25)) + Math.floor(maxBid * 0.05) + 1, maxBid));
     }
 
-    // === HARD: Dynamic opponent-aware strategy ===
+    // === HARD: Dynamic WPD (Win Probability per Dollar) strategy ===
+    const totalBudget = 100;
     const emptyCells = getEmptyCells(board);
     const filledCount = 9 - emptyCells.length;
     const oCount = board.filter(c => c === "O").length;
     const xCount = board.filter(c => c === "X").length;
 
-    // Helpers: count threats/opportunities
+    // Helpers
     const countNearWins = (player: Player) => {
       let count = 0;
       for (const combo of WINNING_COMBINATIONS) {
@@ -229,63 +230,98 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
       return count;
     };
 
+    const countOpenLines = (player: Player) => {
+      let count = 0;
+      for (const combo of WINNING_COMBINATIONS) {
+        const vals = combo.map(i => board[i]);
+        const pCount = vals.filter(v => v === player).length;
+        const eCount = vals.filter(v => v === null).length;
+        if (pCount === 1 && eCount === 2) count++;
+      }
+      return count;
+    };
+
     const aiNearWins = countNearWins("O");
     const playerNearWins = countNearWins("X");
-    const isTrailing = xCount > oCount;
-    const reserveNeeded = Math.min(maxBid, Math.max(6, Math.ceil(maxBid * 0.25))); // keep ~25% reserve minimum
+    const aiOpenLines = countOpenLines("O");
+    const playerOpenLines = countOpenLines("X");
 
+    // Opponent aggression tracking
+    const opponentSpent = totalBudget - playerCoins;
+    const movesPlayed = Math.max(1, xCount);
+    const opponentAggressionRate = opponentSpent / (movesPlayed * totalBudget);
+    const isOpponentAggressive = opponentAggressionRate > 0.60;
+    const isOpponentPassive = opponentAggressionRate < 0.40;
+
+    const scoreDef = xCount - oCount; // positive = AI trailing
     let baseBid: number;
-    let jitter: number;
+    let variancePct = 0.02; // ±2%
 
-    // --- LATE GAME (5+ filled): decisive execution ---
+    // --- LATE GAME: Win/Block state (filledCount >= 5) ---
     if (filledCount >= 5) {
       if (aiNearWins > 0) {
-        // AI can win — bid aggressively to secure the square
-        baseBid = Math.min(40, Math.floor(maxBid * 0.5));
-        jitter = Math.floor(Math.random() * 6) - 2; // -2 to +3
+        // Win-in-1: bid 30–40%
+        baseBid = Math.floor(maxBid * (0.30 + Math.random() * 0.10));
+        if (playerCoins > 20) baseBid = Math.max(baseBid, Math.floor(maxBid * 0.35));
       } else if (playerNearWins > 0) {
-        // Must block — bid strong
-        baseBid = Math.min(35, Math.floor(maxBid * 0.45));
-        jitter = Math.floor(Math.random() * 5) - 1;
+        // Must block: bid ≥35%
+        baseBid = Math.max(Math.floor(maxBid * 0.35), Math.floor(maxBid * 0.30 + Math.random() * maxBid * 0.10));
       } else {
-        baseBid = Math.floor(maxBid * 0.2) + 5;
-        jitter = Math.floor(Math.random() * 4) - 2;
+        const posValue = (aiOpenLines > playerOpenLines) ? 1.2 : 0.9;
+        baseBid = Math.floor(maxBid * 0.15 * posValue) + 5;
+      }
+      // Reserve: ≥30% before final plays if >2 cells remain
+      if (emptyCells.length > 2) {
+        baseBid = Math.min(baseBid, Math.floor(maxBid * 0.70));
       }
     }
-    // --- MID GAME (2-4 filled): control & adapt ---
+    // --- CATCH-UP MODE: Score deficit ≥1 ---
+    else if (scoreDef >= 1 && filledCount >= 2) {
+      const blockWeight = playerNearWins > 0 ? 1.5 : 1.0;
+      baseBid = Math.floor(maxBid * (0.20 + Math.random() * 0.10) * blockWeight);
+      // Favor denial unless strong win chance
+      if (aiNearWins > 0 && aiOpenLines >= 3) {
+        baseBid = Math.floor(maxBid * 0.25);
+      }
+      variancePct = 0.03;
+    }
+    // --- MID GAME (filledCount 2-4) ---
     else if (filledCount >= 2) {
-      if (isTrailing) {
-        // Catch-up mode: contest aggressively
-        baseBid = 20 + Math.floor(Math.random() * 11); // 20-30
-        if (playerNearWins > 0) baseBid += 5; // extra urgency for blocking
-        jitter = Math.floor(Math.random() * 5) - 2;
-      } else if (playerCoins < computerCoins * 0.6) {
-        // Opponent is conservative / low on funds — apply pressure
-        baseBid = 15 + Math.floor(Math.random() * 6); // 15-20
-        jitter = Math.floor(Math.random() * 3);
-      } else {
-        // Standard mid-game
-        baseBid = 10 + Math.floor(Math.random() * 11); // 10-20
-        jitter = Math.floor(Math.random() * 4) - 2;
-      }
+      const centerWeight = (board[4] === null) ? 1.5 : 1.0;
+      const lineWeight = (aiOpenLines > 2) ? 1.3 : 1.0;
+      baseBid = Math.floor(maxBid * (0.10 + Math.random() * 0.10) * centerWeight * lineWeight);
+
+      if (isOpponentAggressive) baseBid = Math.floor(baseBid * 0.80);
+      else if (isOpponentPassive) baseBid = Math.floor(baseBid * 1.12);
+
+      if (playerNearWins > 0) baseBid = Math.max(baseBid, Math.floor(maxBid * 0.18));
     }
-    // --- EARLY GAME (0-1 filled): board coverage, stay flexible ---
+    // --- EARLY GAME (filledCount 0-1): 8–12%, ≥70% reserve ---
     else {
-      baseBid = 8 + Math.floor(Math.random() * 5); // 8-12
-      jitter = Math.floor(Math.random() * 3) - 1;
+      baseBid = Math.floor(maxBid * (0.08 + Math.random() * 0.04));
+      baseBid = Math.min(baseBid, Math.floor(maxBid * 0.30));
     }
 
-    // Unpredictability layer: ~12% chance of a disruptive low bid
-    if (Math.random() < 0.12 && filledCount < 7 && aiNearWins === 0 && playerNearWins === 0) {
-      baseBid = 4 + Math.floor(Math.random() * 4); // surprise $4-7
-      jitter = 0;
+    // ±variance
+    baseBid += Math.floor(maxBid * variancePct * (Math.random() > 0.5 ? 1 : -1));
+
+    // Unpredictability: 10–15% chance, bid ~6%
+    if (Math.random() < (0.10 + Math.random() * 0.05) && filledCount < 7 && aiNearWins === 0 && playerNearWins === 0) {
+      baseBid = Math.max(3, Math.floor(maxBid * 0.06));
     }
 
-    // Budget guard: never leave less than enough for 2-3 critical bids
-    const minReserve = Math.min(maxBid, Math.max(2, Math.floor(emptyCells.length * 3)));
-    const maxAllowed = Math.max(1, maxBid - minReserve);
+    // Budget guard: never below 30% reserve before final 2-3 moves
+    if (emptyCells.length > 2) {
+      baseBid = Math.min(baseBid, Math.floor(maxBid * 0.70));
+    }
+    // No early overcommit unless positional advantage ≥70%
+    if (filledCount <= 3) {
+      const posAdv = aiOpenLines / Math.max(1, aiOpenLines + playerOpenLines);
+      if (posAdv < 0.70) baseBid = Math.min(baseBid, Math.floor(maxBid * 0.15));
+    }
 
-    const finalBid = Math.max(1, Math.min(baseBid + jitter, maxAllowed, maxBid));
+    // Core: maximize (Position Value × Win Probability) ÷ Cost
+    const finalBid = Math.max(1, Math.min(baseBid, maxBid));
     return finalBid;
   }, [computerCoins, playerCoins, board, difficulty]);
 
