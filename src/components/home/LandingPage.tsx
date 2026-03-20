@@ -65,6 +65,7 @@ function ScrollArrow() {
 
 export default function LandingPage({ onPlayComputer, onCreateTournament, onJoinTournament }: LandingPageProps) {
   const { theme, toggleTheme } = useTheme();
+  const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>("medium");
   const [showHowItWorks, setShowHowItWorks] = useState(false);
   const [showSeedingRules, setShowSeedingRules] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
