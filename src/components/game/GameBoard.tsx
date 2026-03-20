@@ -199,19 +199,95 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
 
   const getComputerBid = useCallback(() => {
     const maxBid = computerCoins;
-    // Enforce minimum bid of $1 for computer as well
+    if (maxBid <= 0) return 1;
+
+    // Easy: simple random low bids
     if (difficulty === "easy") {
-      // Easy: bid low, 1-15% of coins
       return Math.max(1, Math.min(Math.floor(Math.random() * Math.max(1, maxBid * 0.15)) + 1, maxBid));
-    } else if (difficulty === "medium") {
-      // Medium: bid moderately, 5-30% of coins
-      return Math.max(1, Math.min(Math.floor(Math.random() * Math.max(1, maxBid * 0.25)) + Math.floor(maxBid * 0.05) + 1, maxBid));
-    } else {
-      // Hard: bid strategically, 10-50% of coins
-      const strategicBid = Math.floor(Math.random() * Math.max(1, maxBid * 0.4)) + Math.floor(maxBid * 0.1) + 1;
-      return Math.max(1, Math.min(strategicBid, maxBid));
     }
-  }, [computerCoins, difficulty]);
+
+    // Medium: moderately smart
+    if (difficulty === "medium") {
+      return Math.max(1, Math.min(Math.floor(Math.random() * Math.max(1, maxBid * 0.25)) + Math.floor(maxBid * 0.05) + 1, maxBid));
+    }
+
+    // === HARD: Dynamic opponent-aware strategy ===
+    const emptyCells = getEmptyCells(board);
+    const filledCount = 9 - emptyCells.length;
+    const oCount = board.filter(c => c === "O").length;
+    const xCount = board.filter(c => c === "X").length;
+
+    // Helpers: count threats/opportunities
+    const countNearWins = (player: Player) => {
+      let count = 0;
+      for (const combo of WINNING_COMBINATIONS) {
+        const vals = combo.map(i => board[i]);
+        const pCount = vals.filter(v => v === player).length;
+        const eCount = vals.filter(v => v === null).length;
+        if (pCount === 2 && eCount === 1) count++;
+      }
+      return count;
+    };
+
+    const aiNearWins = countNearWins("O");
+    const playerNearWins = countNearWins("X");
+    const isTrailing = xCount > oCount;
+    const reserveNeeded = Math.min(maxBid, Math.max(6, Math.ceil(maxBid * 0.25))); // keep ~25% reserve minimum
+
+    let baseBid: number;
+    let jitter: number;
+
+    // --- LATE GAME (5+ filled): decisive execution ---
+    if (filledCount >= 5) {
+      if (aiNearWins > 0) {
+        // AI can win — bid aggressively to secure the square
+        baseBid = Math.min(40, Math.floor(maxBid * 0.5));
+        jitter = Math.floor(Math.random() * 6) - 2; // -2 to +3
+      } else if (playerNearWins > 0) {
+        // Must block — bid strong
+        baseBid = Math.min(35, Math.floor(maxBid * 0.45));
+        jitter = Math.floor(Math.random() * 5) - 1;
+      } else {
+        baseBid = Math.floor(maxBid * 0.2) + 5;
+        jitter = Math.floor(Math.random() * 4) - 2;
+      }
+    }
+    // --- MID GAME (2-4 filled): control & adapt ---
+    else if (filledCount >= 2) {
+      if (isTrailing) {
+        // Catch-up mode: contest aggressively
+        baseBid = 20 + Math.floor(Math.random() * 11); // 20-30
+        if (playerNearWins > 0) baseBid += 5; // extra urgency for blocking
+        jitter = Math.floor(Math.random() * 5) - 2;
+      } else if (playerCoins < computerCoins * 0.6) {
+        // Opponent is conservative / low on funds — apply pressure
+        baseBid = 15 + Math.floor(Math.random() * 6); // 15-20
+        jitter = Math.floor(Math.random() * 3);
+      } else {
+        // Standard mid-game
+        baseBid = 10 + Math.floor(Math.random() * 11); // 10-20
+        jitter = Math.floor(Math.random() * 4) - 2;
+      }
+    }
+    // --- EARLY GAME (0-1 filled): board coverage, stay flexible ---
+    else {
+      baseBid = 8 + Math.floor(Math.random() * 5); // 8-12
+      jitter = Math.floor(Math.random() * 3) - 1;
+    }
+
+    // Unpredictability layer: ~12% chance of a disruptive low bid
+    if (Math.random() < 0.12 && filledCount < 7 && aiNearWins === 0 && playerNearWins === 0) {
+      baseBid = 4 + Math.floor(Math.random() * 4); // surprise $4-7
+      jitter = 0;
+    }
+
+    // Budget guard: never leave less than enough for 2-3 critical bids
+    const minReserve = Math.min(maxBid, Math.max(2, Math.floor(emptyCells.length * 3)));
+    const maxAllowed = Math.max(1, maxBid - minReserve);
+
+    const finalBid = Math.max(1, Math.min(baseBid + jitter, maxAllowed, maxBid));
+    return finalBid;
+  }, [computerCoins, playerCoins, board, difficulty]);
 
   const executeComputerMove = useCallback((currentBoard: Board) => {
     setIsComputerThinking(true);
