@@ -159,6 +159,15 @@ export default function LandingPage({ onPlayComputer, onCreateTournament, onJoin
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48 bg-card border-border">
+                <DropdownMenuItem onClick={toggleTheme} className="cursor-pointer">
+                  {theme === "dark" ? (
+                    <Sun className="w-4 h-4 mr-2 text-amber-500" />
+                  ) : (
+                    <Moon className="w-4 h-4 mr-2 text-primary" />
+                  )}
+                  {theme === "dark" ? "Light Mode" : "Dark Mode"}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => setShowSeedingRules(true)} className="cursor-pointer">
                   <GitBranch className="w-4 h-4 mr-2" />
                   Seeding Rules
