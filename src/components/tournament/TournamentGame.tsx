@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Trophy, Users, Check, Loader2, ArrowLeft, Coins, Clock, ArrowRight, Volume2, VolumeX, Music } from "lucide-react";
+import { Trophy, Users, Check, Loader2, ArrowLeft, Coins, Clock, ArrowRight, Volume2, VolumeX, Music, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import FloatingBackground from "@/components/ui/FloatingBackground";
 import ConfirmLeaveDialog from "@/components/ui/ConfirmLeaveDialog";
@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useTournamentWatchdog } from "@/hooks/useTournamentWatchdog";
 import { useGameSounds } from "@/hooks/useGameSounds";
 import { useBackgroundMusic } from "@/hooks/useBackgroundMusic";
+import { useAfkDetection } from "@/hooks/useAfkDetection";
 import { 
   createNextRoundMatches, 
   getRemainingPlayers,
@@ -335,7 +336,7 @@ export default function TournamentGame({
         if (remaining <= 0) {
           // Auto-action on timeout
           if (isBiddingPhase && matchInfo && !hasSubmittedBidRef.current) {
-            handleBidSubmit(1); // Auto-bid minimum
+            handleBidSubmit(1, true); // Auto-bid minimum
           } else if (!isBiddingPhase && isMyTurn && bidWinner === matchInfo?.mySymbol) {
             autoPlayMove();
           }
@@ -592,10 +593,11 @@ export default function TournamentGame({
     await makeMove(randomCell);
   }, [board, currentMatch, matchInfo]);
 
-  const handleBidSubmit = useCallback(async (bidAmount: number) => {
+  const handleBidSubmit = useCallback(async (bidAmount: number, isAuto = false) => {
     if (!currentMatch || !matchInfo || hasSubmittedBidRef.current) return;
 
     hasSubmittedBidRef.current = true;
+    if (!isAuto) afkActions?.recordManualAction();
     play("bidPlace");
 
     const actualBid = Math.max(1, Math.min(bidAmount, matchInfo.myCoins));
@@ -609,9 +611,6 @@ export default function TournamentGame({
         .from('tournament_matches')
         .update(updateData)
         .eq('id', currentMatch.id);
-
-      // The realtime subscription will detect when both bids are in
-      // and trigger resolveBids via the useEffect above
     } catch (error) {
       console.error("Error submitting bid:", error);
       hasSubmittedBidRef.current = false;
@@ -621,17 +620,56 @@ export default function TournamentGame({
   // Watchdog hook for timeout failsafes - placed after handlers are defined
   const handleForceBid = useCallback(() => {
     if (!hasSubmittedBidRef.current && matchInfo) {
-      handleBidSubmit(1);
+      afkActions.recordAutoAction();
+      handleBidSubmit(1, true);
     }
   }, [matchInfo, handleBidSubmit]);
   
   const handleForceMove = useCallback(() => {
+    afkActions.recordAutoAction();
     autoPlayMove();
   }, [autoPlayMove]);
   
   const handleForceRefresh = useCallback(() => {
     fetchData();
   }, [fetchData]);
+
+  // Forfeit handler for AFK system
+  const handleAfkForfeit = useCallback(async () => {
+    if (!currentMatch || !matchInfo || currentMatch.status !== 'playing') return;
+    
+    const winnerStr = matchInfo.isPlayer1 ? "player2" : "player1";
+    
+    await supabase
+      .from('tournament_matches')
+      .update({
+        match_winner: winnerStr,
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+      })
+      .eq('id', currentMatch.id);
+    
+    await supabase
+      .from('tournament_players')
+      .update({ is_eliminated: true })
+      .eq('id', currentPlayerId);
+      
+    console.warn('[AFK] Player forfeited due to inactivity');
+  }, [currentMatch, matchInfo, currentPlayerId]);
+
+  // AFK detection hook
+  const afkActions = useAfkDetection(
+    {
+      enabled: gameStarted && !showTournamentWinner && !winner,
+      matchId: currentMatch?.id || null,
+      isMyTurn,
+      isBiddingPhase,
+      gameStarted,
+      winner,
+      matchWinner: currentMatch?.match_winner || null,
+    },
+    handleAfkForfeit,
+  );
 
   useTournamentWatchdog(
     {
@@ -649,6 +687,31 @@ export default function TournamentGame({
     handleForceMove,
     handleForceRefresh
   );
+
+  // beforeunload + visibilitychange: forfeit if player closes/navigates away mid-match
+  useEffect(() => {
+    if (!currentMatch || currentMatch.status !== 'playing' || !matchInfo || showTournamentWinner) return;
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // Show browser confirmation dialog
+      e.preventDefault();
+      e.returnValue = '';
+      
+      // Attempt to forfeit using sendBeacon for reliability
+      const winnerStr = matchInfo.isPlayer1 ? "player2" : "player1";
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/tournament_matches?id=eq.${currentMatch.id}`;
+      const body = JSON.stringify({
+        match_winner: winnerStr,
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+      });
+      
+      navigator.sendBeacon?.(url); // Best-effort; realtime + polling will catch it
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [currentMatch?.id, currentMatch?.status, matchInfo?.isPlayer1, showTournamentWinner]);
 
   const resolveBids = useCallback(async (p1Bid: number, p2Bid: number) => {
     if (!currentMatch || !matchInfo) return;
@@ -771,6 +834,7 @@ export default function TournamentGame({
     }
 
     setIsProcessing(true);
+    afkActions.recordManualAction();
     play("markPlace");
 
     const newBoard = [...board];
@@ -1080,7 +1144,7 @@ export default function TournamentGame({
   const handleConfirmLeave = async () => {
     setShowConfirmLeave(false);
     
-    // If in an active match, forfeit the match
+    // If in an active match, forfeit the match and trigger progression
     if (currentMatch && currentMatch.status === 'playing' && matchInfo) {
       const winnerStr = matchInfo.isPlayer1 ? "player2" : "player1";
       
@@ -1098,6 +1162,10 @@ export default function TournamentGame({
         .from('tournament_players')
         .update({ is_eliminated: true })
         .eq('id', currentPlayerId);
+
+      // Trigger tournament progression so opponent advances
+      const currentRoundNumber = currentMatch.round_number || 1;
+      await createNextRoundMatches(tournamentId, currentRoundNumber);
     }
     
     onBack();
@@ -1348,6 +1416,33 @@ export default function TournamentGame({
 
         {/* Middle: Board + Overlays (flex-1 fills remaining space) */}
         <div className="flex-1 flex flex-col items-center justify-center min-h-0">
+          {/* AFK Warning Overlay */}
+          <AnimatePresence>
+            {afkActions.isAway && afkActions.recoveryCountdown !== null && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className="w-full rounded-2xl bg-destructive/10 ring-2 ring-destructive p-4 text-center mb-3"
+              >
+                <AlertTriangle className="w-8 h-8 mx-auto mb-2 text-destructive" />
+                <h3 className="text-base font-bold text-destructive mb-1">⚠️ Are you still there?</h3>
+                <p className="text-sm text-muted-foreground mb-2">
+                  You've been inactive. Match will be forfeited in:
+                </p>
+                <div className="text-3xl font-bold text-destructive">
+                  {afkActions.recoveryCountdown}s
+                </div>
+                <button
+                  onClick={() => afkActions.recordManualAction()}
+                  className="btn-game-primary mt-3 px-6 py-2 text-sm"
+                >
+                  I'm here!
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Notification Overlay */}
           <AnimatePresence>
             {notification && (
