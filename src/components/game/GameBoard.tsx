@@ -199,7 +199,7 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
 
   const getComputerBid = useCallback(() => {
     const maxBid = computerCoins;
-    if (maxBid <= 0) return 1;
+    if (maxBid < 1) return 0; // Signal bankruptcy — caller must handle
 
     // Easy: simple random low bids
     if (difficulty === "easy") {
