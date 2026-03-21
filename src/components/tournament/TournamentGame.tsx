@@ -593,10 +593,11 @@ export default function TournamentGame({
     await makeMove(randomCell);
   }, [board, currentMatch, matchInfo]);
 
-  const handleBidSubmit = useCallback(async (bidAmount: number) => {
+  const handleBidSubmit = useCallback(async (bidAmount: number, isAuto = false) => {
     if (!currentMatch || !matchInfo || hasSubmittedBidRef.current) return;
 
     hasSubmittedBidRef.current = true;
+    if (!isAuto) afkActions?.recordManualAction();
     play("bidPlace");
 
     const actualBid = Math.max(1, Math.min(bidAmount, matchInfo.myCoins));
@@ -610,9 +611,6 @@ export default function TournamentGame({
         .from('tournament_matches')
         .update(updateData)
         .eq('id', currentMatch.id);
-
-      // The realtime subscription will detect when both bids are in
-      // and trigger resolveBids via the useEffect above
     } catch (error) {
       console.error("Error submitting bid:", error);
       hasSubmittedBidRef.current = false;
