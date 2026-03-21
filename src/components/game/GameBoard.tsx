@@ -513,8 +513,7 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
         }
       }, 2000);
     } else {
-      // Bankruptcy check at start of next turn (before bidding phase)
-      // Check if player can afford to continue bidding (minimum bid is $1)
+      // Bankruptcy check before next bidding phase
       if (playerCoins < 1) {
         setNotification({
           type: "bankruptcy",
@@ -524,15 +523,12 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
         setTimeout(() => {
           setNotification(null);
           setWinner("O");
-          setScore(prev => ({ ...prev, computer: prev.computer + 1 }));
-          setTimeout(() => {
-            const newComputerScore = score.computer + 1;
-            if (newComputerScore >= 2) {
-              setGameOver(true);
-            } else {
-              startNextRound();
-            }
-          }, 2000);
+          setScore(prev => {
+            const newScore = prev.computer + 1;
+            if (newScore >= 2) setTimeout(() => setGameOver(true), 1500);
+            else setTimeout(() => startNextRound(), 1500);
+            return { ...prev, computer: newScore };
+          });
         }, BANKRUPTCY_DELAY);
         return;
       }
@@ -546,15 +542,12 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
         setTimeout(() => {
           setNotification(null);
           setWinner("X");
-          setScore(prev => ({ ...prev, player: prev.player + 1 }));
-          setTimeout(() => {
-            const newPlayerScore = score.player + 1;
-            if (newPlayerScore >= 2) {
-              setGameOver(true);
-            } else {
-              startNextRound();
-            }
-          }, 2000);
+          setScore(prev => {
+            const newScore = prev.player + 1;
+            if (newScore >= 2) setTimeout(() => setGameOver(true), 1500);
+            else setTimeout(() => startNextRound(), 1500);
+            return { ...prev, player: newScore };
+          });
         }, BANKRUPTCY_DELAY);
         return;
       }
