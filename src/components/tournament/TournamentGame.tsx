@@ -621,7 +621,7 @@ export default function TournamentGame({
   const handleForceBid = useCallback(() => {
     if (!hasSubmittedBidRef.current && matchInfo) {
       afkActions.recordAutoAction();
-      handleBidSubmit(1);
+      handleBidSubmit(1, true);
     }
   }, [matchInfo, handleBidSubmit]);
   
