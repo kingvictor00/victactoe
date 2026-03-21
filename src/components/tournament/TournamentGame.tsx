@@ -334,10 +334,12 @@ export default function TournamentGame({
         setTimeLeft(remaining);
 
         if (remaining <= 0) {
-          // Auto-action on timeout
+          // Auto-action on timeout — record for AFK detection
           if (isBiddingPhase && matchInfo && !hasSubmittedBidRef.current) {
+            afkActions.recordAutoAction();
             handleBidSubmit(1, true); // Auto-bid minimum
           } else if (!isBiddingPhase && isMyTurn && bidWinner === matchInfo?.mySymbol) {
+            afkActions.recordAutoAction();
             autoPlayMove();
           }
         }
