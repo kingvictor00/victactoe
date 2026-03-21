@@ -1416,6 +1416,33 @@ export default function TournamentGame({
 
         {/* Middle: Board + Overlays (flex-1 fills remaining space) */}
         <div className="flex-1 flex flex-col items-center justify-center min-h-0">
+          {/* AFK Warning Overlay */}
+          <AnimatePresence>
+            {afkActions.isAway && afkActions.recoveryCountdown !== null && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className="w-full rounded-2xl bg-destructive/10 ring-2 ring-destructive p-4 text-center mb-3"
+              >
+                <AlertTriangle className="w-8 h-8 mx-auto mb-2 text-destructive" />
+                <h3 className="text-base font-bold text-destructive mb-1">⚠️ Are you still there?</h3>
+                <p className="text-sm text-muted-foreground mb-2">
+                  You've been inactive. Match will be forfeited in:
+                </p>
+                <div className="text-3xl font-bold text-destructive">
+                  {afkActions.recoveryCountdown}s
+                </div>
+                <button
+                  onClick={() => afkActions.recordManualAction()}
+                  className="btn-game-primary mt-3 px-6 py-2 text-sm"
+                >
+                  I'm here!
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Notification Overlay */}
           <AnimatePresence>
             {notification && (
