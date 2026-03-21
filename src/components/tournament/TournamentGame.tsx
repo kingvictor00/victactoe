@@ -1144,7 +1144,7 @@ export default function TournamentGame({
   const handleConfirmLeave = async () => {
     setShowConfirmLeave(false);
     
-    // If in an active match, forfeit the match
+    // If in an active match, forfeit the match and trigger progression
     if (currentMatch && currentMatch.status === 'playing' && matchInfo) {
       const winnerStr = matchInfo.isPlayer1 ? "player2" : "player1";
       
@@ -1162,6 +1162,10 @@ export default function TournamentGame({
         .from('tournament_players')
         .update({ is_eliminated: true })
         .eq('id', currentPlayerId);
+
+      // Trigger tournament progression so opponent advances
+      const currentRoundNumber = currentMatch.round_number || 1;
+      await createNextRoundMatches(tournamentId, currentRoundNumber);
     }
     
     onBack();
