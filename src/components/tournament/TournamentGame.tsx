@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Trophy, Users, Check, Loader2, ArrowLeft, Coins, Clock, ArrowRight, Volume2, VolumeX, Music } from "lucide-react";
+import { Trophy, Users, Check, Loader2, ArrowLeft, Coins, Clock, ArrowRight, Volume2, VolumeX, Music, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import FloatingBackground from "@/components/ui/FloatingBackground";
 import ConfirmLeaveDialog from "@/components/ui/ConfirmLeaveDialog";
@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useTournamentWatchdog } from "@/hooks/useTournamentWatchdog";
 import { useGameSounds } from "@/hooks/useGameSounds";
 import { useBackgroundMusic } from "@/hooks/useBackgroundMusic";
+import { useAfkDetection } from "@/hooks/useAfkDetection";
 import { 
   createNextRoundMatches, 
   getRemainingPlayers,
