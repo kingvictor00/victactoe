@@ -504,15 +504,10 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
         play("lose");
       }
       setTimeout(() => {
-        if (score.player === 1 || score.computer === 1 || result.winner === "tie") {
-          // Best of 3 logic - check if someone has 2 wins
-          const newPlayerScore = result.winner === "X" ? score.player + 1 : score.player;
-          const newComputerScore = result.winner === "O" ? score.computer + 1 : score.computer;
-          if (newPlayerScore >= 2 || newComputerScore >= 2) {
-            setGameOver(true);
-          } else {
-            startNextRound();
-          }
+        const newPlayerScore = result.winner === "X" ? score.player + 1 : score.player;
+        const newComputerScore = result.winner === "O" ? score.computer + 1 : score.computer;
+        if (newPlayerScore >= 2 || newComputerScore >= 2) {
+          setGameOver(true);
         } else {
           startNextRound();
         }
