@@ -834,6 +834,7 @@ export default function TournamentGame({
     }
 
     setIsProcessing(true);
+    afkActions.recordManualAction();
     play("markPlace");
 
     const newBoard = [...board];
