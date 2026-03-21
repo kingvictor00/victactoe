@@ -622,17 +622,56 @@ export default function TournamentGame({
   // Watchdog hook for timeout failsafes - placed after handlers are defined
   const handleForceBid = useCallback(() => {
     if (!hasSubmittedBidRef.current && matchInfo) {
+      afkActions.recordAutoAction();
       handleBidSubmit(1);
     }
   }, [matchInfo, handleBidSubmit]);
   
   const handleForceMove = useCallback(() => {
+    afkActions.recordAutoAction();
     autoPlayMove();
   }, [autoPlayMove]);
   
   const handleForceRefresh = useCallback(() => {
     fetchData();
   }, [fetchData]);
+
+  // Forfeit handler for AFK system
+  const handleAfkForfeit = useCallback(async () => {
+    if (!currentMatch || !matchInfo || currentMatch.status !== 'playing') return;
+    
+    const winnerStr = matchInfo.isPlayer1 ? "player2" : "player1";
+    
+    await supabase
+      .from('tournament_matches')
+      .update({
+        match_winner: winnerStr,
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+      })
+      .eq('id', currentMatch.id);
+    
+    await supabase
+      .from('tournament_players')
+      .update({ is_eliminated: true })
+      .eq('id', currentPlayerId);
+      
+    console.warn('[AFK] Player forfeited due to inactivity');
+  }, [currentMatch, matchInfo, currentPlayerId]);
+
+  // AFK detection hook
+  const afkActions = useAfkDetection(
+    {
+      enabled: gameStarted && !showTournamentWinner && !winner,
+      matchId: currentMatch?.id || null,
+      isMyTurn,
+      isBiddingPhase,
+      gameStarted,
+      winner,
+      matchWinner: currentMatch?.match_winner || null,
+    },
+    handleAfkForfeit,
+  );
 
   useTournamentWatchdog(
     {
@@ -650,6 +689,31 @@ export default function TournamentGame({
     handleForceMove,
     handleForceRefresh
   );
+
+  // beforeunload + visibilitychange: forfeit if player closes/navigates away mid-match
+  useEffect(() => {
+    if (!currentMatch || currentMatch.status !== 'playing' || !matchInfo || showTournamentWinner) return;
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // Show browser confirmation dialog
+      e.preventDefault();
+      e.returnValue = '';
+      
+      // Attempt to forfeit using sendBeacon for reliability
+      const winnerStr = matchInfo.isPlayer1 ? "player2" : "player1";
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/tournament_matches?id=eq.${currentMatch.id}`;
+      const body = JSON.stringify({
+        match_winner: winnerStr,
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+      });
+      
+      navigator.sendBeacon?.(url); // Best-effort; realtime + polling will catch it
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [currentMatch?.id, currentMatch?.status, matchInfo?.isPlayer1, showTournamentWinner]);
 
   const resolveBids = useCallback(async (p1Bid: number, p2Bid: number) => {
     if (!currentMatch || !matchInfo) return;
