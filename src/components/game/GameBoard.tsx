@@ -315,13 +315,16 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
           play("win");
         }
         setTimeout(() => {
-          const newPlayerScore = result.winner === "X" ? score.player + 1 : score.player;
-          const newComputerScore = result.winner === "O" ? score.computer + 1 : score.computer;
-          if (newPlayerScore >= 2 || newComputerScore >= 2) {
-            setGameOver(true);
-          } else {
-            startNextRound();
-          }
+          setScore(prev => {
+            const newPlayerScore = result.winner === "X" ? prev.player : prev.player;
+            const newComputerScore = result.winner === "O" ? prev.computer : prev.computer;
+            if (newPlayerScore >= 2 || newComputerScore >= 2) {
+              setTimeout(() => setGameOver(true), 0);
+            } else {
+              setTimeout(() => startNextRound(), 0);
+            }
+            return prev;
+          });
         }, 2000);
       } else {
         setIsBiddingPhase(true);
@@ -329,7 +332,7 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
         setCurrentBidder(null);
       }
     }, thinkTime);
-  }, [computerMove, checkWinner, score]);
+  }, [computerMove, checkWinner]);
 
   const handleBidSubmit = useCallback((bidAmount: number) => {
     if (isProcessingBid) return;
