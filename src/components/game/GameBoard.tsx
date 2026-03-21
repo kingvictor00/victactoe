@@ -507,13 +507,14 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
         play("lose");
       }
       setTimeout(() => {
-        const newPlayerScore = result.winner === "X" ? score.player + 1 : score.player;
-        const newComputerScore = result.winner === "O" ? score.computer + 1 : score.computer;
-        if (newPlayerScore >= 2 || newComputerScore >= 2) {
-          setGameOver(true);
-        } else {
-          startNextRound();
-        }
+        setScore(prev => {
+          if (prev.player >= 2 || prev.computer >= 2) {
+            setTimeout(() => setGameOver(true), 0);
+          } else {
+            setTimeout(() => startNextRound(), 0);
+          }
+          return prev;
+        });
       }, 2000);
     } else {
       // Bankruptcy check before next bidding phase
