@@ -333,32 +333,100 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
 
   const handleBidSubmit = useCallback((bidAmount: number) => {
     if (isProcessingBid) return;
+    
+    // Pre-bid bankruptcy checks — if either side can't afford min bid ($1), end round
+    if (playerCoins < 1) {
+      setIsProcessingBid(true);
+      setNotification({
+        type: "bankruptcy",
+        message: "💸 You're Bankrupt!",
+        subMessage: "You can't afford to bid anymore. Computer wins this round!",
+      });
+      setTimeout(() => {
+        setNotification(null);
+        setWinner("O");
+        setScore(prev => {
+          const newScore = prev.computer + 1;
+          if (newScore >= 2) setTimeout(() => setGameOver(true), 1500);
+          else setTimeout(() => startNextRound(), 1500);
+          return { ...prev, computer: newScore };
+        });
+        setIsProcessingBid(false);
+      }, BANKRUPTCY_DELAY);
+      return;
+    }
+    
+    if (computerCoins < 1) {
+      setIsProcessingBid(true);
+      setNotification({
+        type: "bankruptcy",
+        message: "🎉 Computer Bankrupt!",
+        subMessage: "Computer can't afford to bid anymore. You win this round!",
+      });
+      setTimeout(() => {
+        setNotification(null);
+        setWinner("X");
+        setScore(prev => {
+          const newScore = prev.player + 1;
+          if (newScore >= 2) setTimeout(() => setGameOver(true), 1500);
+          else setTimeout(() => startNextRound(), 1500);
+          return { ...prev, player: newScore };
+        });
+        setIsProcessingBid(false);
+      }, BANKRUPTCY_DELAY);
+      return;
+    }
+    
     setIsProcessingBid(true);
     play("bidPlace");
     
     const computerBid = getComputerBid();
-    // Enforce minimum bid of $1 - no $0 bids allowed
-    const actualBid = Math.max(1, Math.min(bidAmount, playerCoins));
     
-    const newPlayerCoins = playerCoins - actualBid;
-    const newComputerCoins = computerCoins - computerBid;
+    // Computer returned 0 = bankrupt (shouldn't happen since we check above, but guard)
+    if (computerBid < 1) {
+      setNotification({
+        type: "bankruptcy",
+        message: "🎉 Computer Bankrupt!",
+        subMessage: "Computer can't afford to bid anymore. You win this round!",
+      });
+      setTimeout(() => {
+        setNotification(null);
+        setWinner("X");
+        setScore(prev => {
+          const newScore = prev.player + 1;
+          if (newScore >= 2) setTimeout(() => setGameOver(true), 1500);
+          else setTimeout(() => startNextRound(), 1500);
+          return { ...prev, player: newScore };
+        });
+        setIsProcessingBid(false);
+      }, BANKRUPTCY_DELAY);
+      return;
+    }
+    
+    // Enforce minimum bid of $1 and cap at available coins
+    const actualBid = Math.max(1, Math.min(bidAmount, playerCoins));
+    const actualComputerBid = Math.max(1, Math.min(computerBid, computerCoins));
+    
+    // Clamp balances to never go below 0
+    const newPlayerCoins = Math.max(0, playerCoins - actualBid);
+    const newComputerCoins = Math.max(0, computerCoins - actualComputerBid);
     
     setPlayerCoins(newPlayerCoins);
     setComputerCoins(newComputerCoins);
     
-    const isTie = actualBid === computerBid;
+    const isTie = actualBid === actualComputerBid;
     let bidWinner: Player;
     
-    if (actualBid > computerBid) {
+    if (actualBid > actualComputerBid) {
       bidWinner = "X";
-    } else if (computerBid > actualBid) {
+    } else if (actualComputerBid > actualBid) {
       bidWinner = "O";
     } else {
       // Tie - coin toss
       bidWinner = Math.random() > 0.5 ? "X" : "O";
     }
     
-    setLastBidResult({ playerBid: actualBid, computerBid, winner: bidWinner });
+    setLastBidResult({ playerBid: actualBid, computerBid: actualComputerBid, winner: bidWinner });
     setIsBiddingPhase(false);
     setPlayerBid(10);
     
@@ -399,7 +467,7 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
     setNotification({
       type: bidWinner === "X" ? "bid_win" : "bid_lose",
       message: bidWinner === "X" ? "🎯 You Won the Bid!" : "💻 Computer Won the Bid!",
-      subMessage: `You bid $${actualBid} vs Computer's $${computerBid}`,
+      subMessage: `You bid $${actualBid} vs Computer's $${actualComputerBid}`,
     });
     
     setTimeout(() => {
@@ -413,7 +481,7 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
       }
     }, BID_RESULT_DELAY);
     
-  }, [getComputerBid, board, executeComputerMove, playerCoins, computerCoins, isProcessingBid]);
+  }, [getComputerBid, board, executeComputerMove, playerCoins, computerCoins, isProcessingBid, score]);
 
   const makeMove = useCallback((cellIndex: number) => {
     if (board[cellIndex] !== null || !currentBidder) return;
