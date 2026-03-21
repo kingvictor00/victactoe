@@ -336,7 +336,7 @@ export default function TournamentGame({
         if (remaining <= 0) {
           // Auto-action on timeout
           if (isBiddingPhase && matchInfo && !hasSubmittedBidRef.current) {
-            handleBidSubmit(1); // Auto-bid minimum
+            handleBidSubmit(1, true); // Auto-bid minimum
           } else if (!isBiddingPhase && isMyTurn && bidWinner === matchInfo?.mySymbol) {
             autoPlayMove();
           }
