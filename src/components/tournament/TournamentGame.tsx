@@ -1720,8 +1720,8 @@ export default function TournamentGame({
         open={showConfirmLeave}
         onOpenChange={setShowConfirmLeave}
         onConfirm={handleConfirmLeave}
-        title="Leave Match?"
-        description="Are you sure you want to leave? This will count as a forfeit."
+        title="Leave Game?"
+        description="This will forfeit the match and permanently disable rejoin. Are you sure?"
       />
     </div>
   );
