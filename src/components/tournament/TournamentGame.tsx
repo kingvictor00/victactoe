@@ -706,30 +706,62 @@ export default function TournamentGame({
     handleForceRefresh
   );
 
-  // beforeunload + visibilitychange: forfeit if player closes/navigates away mid-match
+  // beforeunload: mark as "left" + forfeit if player closes tab mid-match
   useEffect(() => {
     if (!currentMatch || currentMatch.status !== 'playing' || !matchInfo || showTournamentWinner) return;
 
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      // Show browser confirmation dialog
       e.preventDefault();
       e.returnValue = '';
       
-      // Attempt to forfeit using sendBeacon for reliability
-      const winnerStr = matchInfo.isPlayer1 ? "player2" : "player1";
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/tournament_matches?id=eq.${currentMatch.id}`;
-      const body = JSON.stringify({
-        match_winner: winnerStr,
-        status: 'completed',
-        completed_at: new Date().toISOString(),
-      });
+      // Mark as "left" so opponent knows it's intentional
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/tournament_players?id=eq.${currentPlayerId}`;
+      const headers = {
+        'Content-Type': 'application/json',
+        'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        'Prefer': 'return=minimal',
+      };
+      const body = JSON.stringify({ connection_status: 'left' });
+      navigator.sendBeacon?.(url); // Best-effort
       
-      navigator.sendBeacon?.(url); // Best-effort; realtime + polling will catch it
+      // Also try to forfeit
+      const matchUrl = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/tournament_matches?id=eq.${currentMatch.id}`;
+      const winnerStr = matchInfo.isPlayer1 ? "player2" : "player1";
+      navigator.sendBeacon?.(matchUrl);
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [currentMatch?.id, currentMatch?.status, matchInfo?.isPlayer1, showTournamentWinner]);
+  }, [currentMatch?.id, currentMatch?.status, matchInfo?.isPlayer1, showTournamentWinner, currentPlayerId]);
+
+  // Opponent disconnect grace period expiry → auto-forfeit opponent
+  useEffect(() => {
+    if (!heartbeat.opponentDisconnected || heartbeat.opponentGraceRemaining === null) return;
+    
+    if (heartbeat.opponentGraceRemaining <= 0 && currentMatch && matchInfo && currentMatch.status === 'playing') {
+      // Opponent's grace expired — forfeit them
+      const winnerStr = matchInfo.isPlayer1 ? "player1" : "player2";
+      
+      const doForfeit = async () => {
+        await supabase
+          .from('tournament_matches')
+          .update({
+            match_winner: winnerStr,
+            status: 'completed',
+            completed_at: new Date().toISOString(),
+          })
+          .eq('id', currentMatch.id);
+        
+        await supabase
+          .from('tournament_players')
+          .update({ is_eliminated: true, connection_status: 'left' })
+          .eq('id', opponentId!);
+      };
+      
+      doForfeit();
+    }
+  }, [heartbeat.opponentDisconnected, heartbeat.opponentGraceRemaining, currentMatch, matchInfo, opponentId]);
 
   const resolveBids = useCallback(async (p1Bid: number, p2Bid: number) => {
     if (!currentMatch || !matchInfo) return;
