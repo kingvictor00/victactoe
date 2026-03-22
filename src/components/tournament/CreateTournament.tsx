@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import FloatingBackground from "@/components/ui/FloatingBackground";
 import ConfirmLeaveDialog from "@/components/ui/ConfirmLeaveDialog";
+import { getDeviceId, generateSessionToken, saveMatchSession } from "@/hooks/usePlayerIdentity";
 
 interface CreateTournamentProps {
   onBack: () => void;
