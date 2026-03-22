@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import FloatingBackground from "@/components/ui/FloatingBackground";
 import ConfirmLeaveDialog from "@/components/ui/ConfirmLeaveDialog";
+import { getDeviceId, generateSessionToken, saveMatchSession } from "@/hooks/usePlayerIdentity";
 
 interface JoinTournamentProps {
   onBack: () => void;
@@ -117,20 +118,36 @@ export default function JoinTournament({ onBack, onJoined, initialCode }: JoinTo
         return;
       }
 
-      // Insert player
+      // Insert player with device identity
+      const deviceId = getDeviceId();
+      const sessionToken = generateSessionToken();
+
       const { data: player, error: playerError } = await supabase
         .from('tournament_players')
         .insert({
           tournament_id: tournamentInfo.id,
           player_name: playerName.trim(),
           is_host: false,
+          device_id: deviceId,
+          session_token: sessionToken,
         })
         .select()
         .single();
 
       if (playerError) throw playerError;
 
-      // Save session to sessionStorage (prevents cross-tab collisions)
+      // Save persistent session for reconnection
+      saveMatchSession({
+        tournamentId: tournamentInfo.id,
+        tournamentCode: code.toUpperCase(),
+        playerId: player.id,
+        playerName: playerName.trim(),
+        isHost: false,
+        sessionToken,
+        timestamp: Date.now(),
+      });
+
+      // Also keep sessionStorage for backward compat
       const sessionData = {
         tournamentId: tournamentInfo.id,
         tournamentCode: code.toUpperCase(),

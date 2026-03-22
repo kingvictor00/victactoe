@@ -119,33 +119,45 @@ export type Database = {
       }
       tournament_players: {
         Row: {
+          connection_status: string
+          device_id: string | null
           id: string
           is_eliminated: boolean
           is_host: boolean
           is_ready: boolean
           joined_at: string
+          last_heartbeat: string
           player_name: string
           seed_position: number | null
+          session_token: string | null
           tournament_id: string
         }
         Insert: {
+          connection_status?: string
+          device_id?: string | null
           id?: string
           is_eliminated?: boolean
           is_host?: boolean
           is_ready?: boolean
           joined_at?: string
+          last_heartbeat?: string
           player_name: string
           seed_position?: number | null
+          session_token?: string | null
           tournament_id: string
         }
         Update: {
+          connection_status?: string
+          device_id?: string | null
           id?: string
           is_eliminated?: boolean
           is_host?: boolean
           is_ready?: boolean
           joined_at?: string
+          last_heartbeat?: string
           player_name?: string
           seed_position?: number | null
+          session_token?: string | null
           tournament_id?: string
         }
         Relationships: [

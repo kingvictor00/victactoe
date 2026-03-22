@@ -17,7 +17,7 @@ interface AfkState {
 }
 
 const MAX_AUTO_BIDS_BEFORE_AWAY = 3;
-const RECOVERY_SECONDS = 15;
+const RECOVERY_SECONDS = 20;
 
 /**
  * Tracks consecutive auto-bids/auto-moves. After 3, marks player "away"

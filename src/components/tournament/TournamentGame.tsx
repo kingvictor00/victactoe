@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Trophy, Users, Check, Loader2, ArrowLeft, Coins, Clock, ArrowRight, Volume2, VolumeX, Music, AlertTriangle } from "lucide-react";
+import { Trophy, Users, Check, Loader2, ArrowLeft, Coins, Clock, ArrowRight, Volume2, VolumeX, Music, AlertTriangle, WifiOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import FloatingBackground from "@/components/ui/FloatingBackground";
 import ConfirmLeaveDialog from "@/components/ui/ConfirmLeaveDialog";
@@ -12,6 +12,8 @@ import { useTournamentWatchdog } from "@/hooks/useTournamentWatchdog";
 import { useGameSounds } from "@/hooks/useGameSounds";
 import { useBackgroundMusic } from "@/hooks/useBackgroundMusic";
 import { useAfkDetection } from "@/hooks/useAfkDetection";
+import { useHeartbeat } from "@/hooks/useHeartbeat";
+import { getDeviceId, saveMatchSession, clearMatchSession } from "@/hooks/usePlayerIdentity";
 import { 
   createNextRoundMatches, 
   getRemainingPlayers,
@@ -128,6 +130,20 @@ export default function TournamentGame({
   const { toast } = useToast();
   const { isMuted, toggleMute, play } = useGameSounds();
   const { isMusicMuted, toggleMusic } = useBackgroundMusic();
+
+  // Heartbeat: send own heartbeat + detect opponent disconnects
+  const opponentId = useMemo(() => {
+    if (!currentMatch) return null;
+    return currentMatch.player1_id === currentPlayerId
+      ? currentMatch.player2_id
+      : currentMatch.player1_id;
+  }, [currentMatch, currentPlayerId]);
+
+  const heartbeat = useHeartbeat({
+    playerId: currentPlayerId,
+    opponentId,
+    enabled: !!currentMatch && currentMatch.status === 'playing' && !showTournamentWinner,
+  });
 
   // Get current player
   const currentPlayer = useMemo(() =>
@@ -690,30 +706,62 @@ export default function TournamentGame({
     handleForceRefresh
   );
 
-  // beforeunload + visibilitychange: forfeit if player closes/navigates away mid-match
+  // beforeunload: mark as "left" + forfeit if player closes tab mid-match
   useEffect(() => {
     if (!currentMatch || currentMatch.status !== 'playing' || !matchInfo || showTournamentWinner) return;
 
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      // Show browser confirmation dialog
       e.preventDefault();
       e.returnValue = '';
       
-      // Attempt to forfeit using sendBeacon for reliability
-      const winnerStr = matchInfo.isPlayer1 ? "player2" : "player1";
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/tournament_matches?id=eq.${currentMatch.id}`;
-      const body = JSON.stringify({
-        match_winner: winnerStr,
-        status: 'completed',
-        completed_at: new Date().toISOString(),
-      });
+      // Mark as "left" so opponent knows it's intentional
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/tournament_players?id=eq.${currentPlayerId}`;
+      const headers = {
+        'Content-Type': 'application/json',
+        'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        'Prefer': 'return=minimal',
+      };
+      const body = JSON.stringify({ connection_status: 'left' });
+      navigator.sendBeacon?.(url); // Best-effort
       
-      navigator.sendBeacon?.(url); // Best-effort; realtime + polling will catch it
+      // Also try to forfeit
+      const matchUrl = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/tournament_matches?id=eq.${currentMatch.id}`;
+      const winnerStr = matchInfo.isPlayer1 ? "player2" : "player1";
+      navigator.sendBeacon?.(matchUrl);
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [currentMatch?.id, currentMatch?.status, matchInfo?.isPlayer1, showTournamentWinner]);
+  }, [currentMatch?.id, currentMatch?.status, matchInfo?.isPlayer1, showTournamentWinner, currentPlayerId]);
+
+  // Opponent disconnect grace period expiry → auto-forfeit opponent
+  useEffect(() => {
+    if (!heartbeat.opponentDisconnected || heartbeat.opponentGraceRemaining === null) return;
+    
+    if (heartbeat.opponentGraceRemaining <= 0 && currentMatch && matchInfo && currentMatch.status === 'playing') {
+      // Opponent's grace expired — forfeit them
+      const winnerStr = matchInfo.isPlayer1 ? "player1" : "player2";
+      
+      const doForfeit = async () => {
+        await supabase
+          .from('tournament_matches')
+          .update({
+            match_winner: winnerStr,
+            status: 'completed',
+            completed_at: new Date().toISOString(),
+          })
+          .eq('id', currentMatch.id);
+        
+        await supabase
+          .from('tournament_players')
+          .update({ is_eliminated: true, connection_status: 'left' })
+          .eq('id', opponentId!);
+      };
+      
+      doForfeit();
+    }
+  }, [heartbeat.opponentDisconnected, heartbeat.opponentGraceRemaining, currentMatch, matchInfo, opponentId]);
 
   const resolveBids = useCallback(async (p1Bid: number, p2Bid: number) => {
     if (!currentMatch || !matchInfo) return;
@@ -1146,6 +1194,12 @@ export default function TournamentGame({
   const handleConfirmLeave = async () => {
     setShowConfirmLeave(false);
     
+    // Mark as intentionally left — no rejoin allowed
+    await supabase
+      .from('tournament_players')
+      .update({ connection_status: 'left' })
+      .eq('id', currentPlayerId);
+    
     // If in an active match, forfeit the match and trigger progression
     if (currentMatch && currentMatch.status === 'playing' && matchInfo) {
       const winnerStr = matchInfo.isPlayer1 ? "player2" : "player1";
@@ -1170,6 +1224,7 @@ export default function TournamentGame({
       await createNextRoundMatches(tournamentId, currentRoundNumber);
     }
     
+    clearMatchSession();
     onBack();
   };
 
@@ -1445,6 +1500,30 @@ export default function TournamentGame({
             )}
           </AnimatePresence>
 
+          {/* Opponent Disconnected Overlay */}
+          <AnimatePresence>
+            {heartbeat.opponentDisconnected && heartbeat.opponentGraceRemaining !== null && heartbeat.opponentGraceRemaining > 0 && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className="w-full rounded-2xl bg-amber-500/10 ring-2 ring-amber-500 p-4 text-center mb-3"
+              >
+                <WifiOff className="w-8 h-8 mx-auto mb-2 text-amber-500" />
+                <h3 className="text-base font-bold text-amber-600 dark:text-amber-400 mb-1">Opponent Disconnected</h3>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Waiting for {matchInfo?.opponent.player_name} to reconnect...
+                </p>
+                <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+                  {heartbeat.opponentGraceRemaining}s
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Match will be forfeited if they don't return
+                </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Notification Overlay */}
           <AnimatePresence>
             {notification && (
@@ -1641,8 +1720,8 @@ export default function TournamentGame({
         open={showConfirmLeave}
         onOpenChange={setShowConfirmLeave}
         onConfirm={handleConfirmLeave}
-        title="Leave Match?"
-        description="Are you sure you want to leave? This will count as a forfeit."
+        title="Leave Game?"
+        description="This will forfeit the match and permanently disable rejoin. Are you sure?"
       />
     </div>
   );
