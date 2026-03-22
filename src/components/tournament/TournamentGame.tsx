@@ -1194,6 +1194,12 @@ export default function TournamentGame({
   const handleConfirmLeave = async () => {
     setShowConfirmLeave(false);
     
+    // Mark as intentionally left — no rejoin allowed
+    await supabase
+      .from('tournament_players')
+      .update({ connection_status: 'left' })
+      .eq('id', currentPlayerId);
+    
     // If in an active match, forfeit the match and trigger progression
     if (currentMatch && currentMatch.status === 'playing' && matchInfo) {
       const winnerStr = matchInfo.isPlayer1 ? "player2" : "player1";
@@ -1218,6 +1224,7 @@ export default function TournamentGame({
       await createNextRoundMatches(tournamentId, currentRoundNumber);
     }
     
+    clearMatchSession();
     onBack();
   };
 
