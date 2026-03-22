@@ -60,29 +60,40 @@ export default function CreateTournament({ onBack, onTournamentCreated }: Create
 
       if (tournamentError) throw tournamentError;
 
-      // Add host as first player
+      // Add host as first player with device identity
+      const deviceId = getDeviceId();
+      const sessionToken = generateSessionToken();
+
       const { data: player, error: playerError } = await supabase
         .from('tournament_players')
         .insert({
           tournament_id: tournament.id,
           player_name: hostName.trim(),
           is_host: true,
+          device_id: deviceId,
+          session_token: sessionToken,
         })
         .select()
         .single();
 
       if (playerError) throw playerError;
 
-      // Save session to sessionStorage for persistence (prevents cross-tab collisions)
-      const sessionData = {
+      // Update tournament host_id
+      await supabase
+        .from('tournaments')
+        .update({ host_id: player.id })
+        .eq('id', tournament.id);
+
+      // Save persistent session for reconnection
+      saveMatchSession({
         tournamentId: tournament.id,
         tournamentCode: code,
-        isHost: true,
-        currentPlayerId: player.id,
+        playerId: player.id,
         playerName: hostName.trim(),
+        isHost: true,
+        sessionToken,
         timestamp: Date.now(),
-      };
-      sessionStorage.setItem('tournament_session', JSON.stringify(sessionData));
+      });
 
       onTournamentCreated(code, tournament.id, player.id);
     } catch (error) {
