@@ -1500,6 +1500,30 @@ export default function TournamentGame({
             )}
           </AnimatePresence>
 
+          {/* Opponent Disconnected Overlay */}
+          <AnimatePresence>
+            {heartbeat.opponentDisconnected && heartbeat.opponentGraceRemaining !== null && heartbeat.opponentGraceRemaining > 0 && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className="w-full rounded-2xl bg-amber-500/10 ring-2 ring-amber-500 p-4 text-center mb-3"
+              >
+                <WifiOff className="w-8 h-8 mx-auto mb-2 text-amber-500" />
+                <h3 className="text-base font-bold text-amber-600 dark:text-amber-400 mb-1">Opponent Disconnected</h3>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Waiting for {matchInfo?.opponent.player_name} to reconnect...
+                </p>
+                <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+                  {heartbeat.opponentGraceRemaining}s
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Match will be forfeited if they don't return
+                </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Notification Overlay */}
           <AnimatePresence>
             {notification && (
