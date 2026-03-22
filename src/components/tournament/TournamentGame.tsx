@@ -131,6 +131,20 @@ export default function TournamentGame({
   const { isMuted, toggleMute, play } = useGameSounds();
   const { isMusicMuted, toggleMusic } = useBackgroundMusic();
 
+  // Heartbeat: send own heartbeat + detect opponent disconnects
+  const opponentId = useMemo(() => {
+    if (!currentMatch) return null;
+    return currentMatch.player1_id === currentPlayerId
+      ? currentMatch.player2_id
+      : currentMatch.player1_id;
+  }, [currentMatch, currentPlayerId]);
+
+  const heartbeat = useHeartbeat({
+    playerId: currentPlayerId,
+    opponentId,
+    enabled: !!currentMatch && currentMatch.status === 'playing' && !showTournamentWinner,
+  });
+
   // Get current player
   const currentPlayer = useMemo(() =>
     players.find(p => p.id === currentPlayerId),
