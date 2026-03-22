@@ -7,6 +7,8 @@ import CreateTournament from "@/components/tournament/CreateTournament";
 import JoinTournament from "@/components/tournament/JoinTournament";
 import TournamentLobby from "@/components/tournament/TournamentLobby";
 import TournamentGame from "@/components/tournament/TournamentGame";
+import { supabase } from "@/integrations/supabase/client";
+import { getMatchSession, getDeviceId, clearMatchSession } from "@/hooks/usePlayerIdentity";
 
 type GameMode = "landing" | "computer" | "create-tournament" | "join-tournament" | "tournament-lobby" | "tournament-game";
 
