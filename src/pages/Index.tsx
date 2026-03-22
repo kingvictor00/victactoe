@@ -44,39 +44,84 @@ const Index = () => {
     }
   }, []);
 
-  // Restore session on mount
+  // Restore session on mount — supports rejoin after reload/disconnect
   useEffect(() => {
-    if (initialJoinCode) return; // Don't restore session if deep-linking
-    const savedSession = sessionStorage.getItem('tournament_session');
-    if (savedSession) {
-      try {
-        const session: TournamentSession = JSON.parse(savedSession);
-        if (Date.now() - session.timestamp < SESSION_EXPIRY) {
-          setTournamentId(session.tournamentId);
-          setTournamentCode(session.tournamentCode);
-          setIsHost(session.isHost);
-          setCurrentPlayerId(session.currentPlayerId);
-          setGameMode("tournament-lobby");
-        } else {
+    if (initialJoinCode) return;
+
+    const attemptRejoin = async () => {
+      // Try localStorage-based persistent session first
+      const matchSession = getMatchSession();
+      if (matchSession) {
+        const deviceId = getDeviceId();
+
+        // Validate: check player still exists, is not "left", and matches device
+        const { data: player } = await supabase
+          .from('tournament_players')
+          .select('id, connection_status, device_id, session_token')
+          .eq('id', matchSession.playerId)
+          .single();
+
+        if (player && player.connection_status !== 'left') {
+          // Verify device or session token match (anti-spoofing)
+          if (player.device_id === deviceId || player.session_token === matchSession.sessionToken) {
+            // Restore: update status to active + refresh heartbeat
+            await supabase
+              .from('tournament_players')
+              .update({
+                connection_status: 'active',
+                last_heartbeat: new Date().toISOString(),
+              })
+              .eq('id', matchSession.playerId);
+
+            setTournamentId(matchSession.tournamentId);
+            setTournamentCode(matchSession.tournamentCode);
+            setIsHost(matchSession.isHost);
+            setCurrentPlayerId(matchSession.playerId);
+
+            // Check tournament status to decide where to go
+            const { data: tournament } = await supabase
+              .from('tournaments')
+              .select('status')
+              .eq('id', matchSession.tournamentId)
+              .single();
+
+            if (tournament?.status === 'in_progress') {
+              setGameMode("tournament-game");
+            } else if (tournament?.status === 'waiting') {
+              setGameMode("tournament-lobby");
+            } else {
+              // Tournament completed or not found
+              clearMatchSession();
+            }
+            return;
+          }
+        }
+
+        // Invalid session — clear it
+        clearMatchSession();
+      }
+
+      // Fallback: try sessionStorage (backward compat)
+      const savedSession = sessionStorage.getItem('tournament_session');
+      if (savedSession) {
+        try {
+          const session: TournamentSession = JSON.parse(savedSession);
+          if (Date.now() - session.timestamp < SESSION_EXPIRY) {
+            setTournamentId(session.tournamentId);
+            setTournamentCode(session.tournamentCode);
+            setIsHost(session.isHost);
+            setCurrentPlayerId(session.currentPlayerId);
+            setGameMode("tournament-lobby");
+          } else {
+            sessionStorage.removeItem('tournament_session');
+          }
+        } catch {
           sessionStorage.removeItem('tournament_session');
         }
-      } catch (e) {
-        sessionStorage.removeItem('tournament_session');
       }
-    }
+    };
 
-    const saveInterval = setInterval(() => {
-      const currentSession = sessionStorage.getItem('tournament_session');
-      if (currentSession) {
-        try {
-          const session: TournamentSession = JSON.parse(currentSession);
-          session.timestamp = Date.now();
-          sessionStorage.setItem('tournament_session', JSON.stringify(session));
-        } catch (e) {}
-      }
-    }, 30000);
-
-    return () => clearInterval(saveInterval);
+    attemptRejoin();
   }, [initialJoinCode]);
 
   const handlePlayComputer = (selectedDifficulty: Difficulty) => {
