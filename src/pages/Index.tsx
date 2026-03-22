@@ -168,6 +168,7 @@ const Index = () => {
   };
 
   const handleLeaveTournamentGame = () => {
+    clearMatchSession();
     sessionStorage.removeItem('tournament_session');
     setTournamentId(null);
     setTournamentCode(null);
