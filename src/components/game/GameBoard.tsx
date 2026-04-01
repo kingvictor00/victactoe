@@ -763,13 +763,7 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
               >
                 {coinTossAnimation && (
                   <div className="mb-2">
-                    <motion.div
-                      animate={{ rotateY: [0, 180, 360, 540, 720], scale: [1, 1.2, 1, 1.2, 1] }}
-                      transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                      className="w-12 h-12 mx-auto rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-xl shadow-lg"
-                    >
-                      🪙
-                    </motion.div>
+                    <CoinFlipAnimation isFlipping={coinTossAnimation} />
                   </div>
                 )}
                 <h3 className="text-base font-bold mb-0.5">{notification.message}</h3>
