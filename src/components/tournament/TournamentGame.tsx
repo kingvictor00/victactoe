@@ -1473,26 +1473,22 @@ export default function TournamentGame({
 
         {/* Middle: Board + Overlays (flex-1 fills remaining space) */}
         <div className="flex-1 flex flex-col items-center justify-center min-h-0">
-          {/* AFK Warning Overlay */}
+          {/* AFK Warning Overlay — compact banner */}
           <AnimatePresence>
             {afkActions.isAway && afkActions.recoveryCountdown !== null && (
               <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                className="w-full rounded-2xl bg-destructive/10 ring-2 ring-destructive p-4 text-center mb-3"
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="w-full rounded-xl bg-destructive/10 ring-1 ring-destructive px-3 py-2 flex items-center gap-3 mb-2"
               >
-                <AlertTriangle className="w-8 h-8 mx-auto mb-2 text-destructive" />
-                <h3 className="text-base font-bold text-destructive mb-1">⚠️ Are you still there?</h3>
-                <p className="text-sm text-muted-foreground mb-2">
-                  You've been inactive. Match will be forfeited in:
-                </p>
-                <div className="text-3xl font-bold text-destructive">
-                  {afkActions.recoveryCountdown}s
+                <AlertTriangle className="w-5 h-5 text-destructive shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-destructive">AFK — forfeit in {afkActions.recoveryCountdown}s</p>
                 </div>
                 <button
                   onClick={() => afkActions.recordManualAction()}
-                  className="btn-game-primary mt-3 px-6 py-2 text-sm"
+                  className="btn-game-primary px-3 py-1 text-xs shrink-0 rounded-lg"
                 >
                   I'm here!
                 </button>
