@@ -611,52 +611,74 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
     onBack();
   };
 
-  // Bid timer effect
-  useEffect(() => {
-    if (!isBiddingPhase || winner || isProcessingBid) return;
-    
-    const timer = setInterval(() => {
-      setBidTimeLeft(prev => {
-        if (prev <= 1) {
-          // Auto-submit minimum bid when time runs out
-          handleBidSubmit(1);
-          return BID_TIME;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    
-    return () => clearInterval(timer);
-  }, [isBiddingPhase, winner, handleBidSubmit, isProcessingBid]);
+  // RAF-based bid timer — drift-free
+  const bidTimerStartRef = useRef(Date.now());
+  const bidTimerRafRef = useRef(0);
 
-  // Turn timer effect
   useEffect(() => {
-    if (!currentBidder || winner || currentBidder === "O" || isBiddingPhase) return;
-    
-    const timer = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 1) {
-          // Auto play
-          const emptyCells = getEmptyCells(board);
-          if (emptyCells.length > 0) {
-            const randomCell = emptyCells[Math.floor(Math.random() * emptyCells.length)];
-            setAutoPlays(ap => {
-              const newAutoPlays = ap + 1;
-              if (newAutoPlays >= MAX_AUTO_PLAYS) {
-                setWinner("O");
-                setScore(prev => ({ ...prev, computer: prev.computer + 1 }));
-              }
-              return newAutoPlays;
-            });
-            makeMove(randomCell);
-          }
-          return TURN_TIME;
+    if (!isBiddingPhase || winner || isProcessingBid) {
+      cancelAnimationFrame(bidTimerRafRef.current);
+      return;
+    }
+
+    bidTimerStartRef.current = Date.now();
+    setBidTimeLeft(BID_TIME);
+
+    const tick = () => {
+      const elapsed = Date.now() - bidTimerStartRef.current;
+      const remaining = Math.max(0, Math.ceil((BID_TIME * 1000 - elapsed) / 1000));
+      setBidTimeLeft(remaining);
+
+      if (remaining <= 0) {
+        handleBidSubmit(1);
+        return;
+      }
+      bidTimerRafRef.current = requestAnimationFrame(tick);
+    };
+
+    bidTimerRafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(bidTimerRafRef.current);
+  }, [isBiddingPhase, winner, isProcessingBid, handleBidSubmit]);
+
+  // RAF-based turn timer — drift-free
+  const turnTimerStartRef = useRef(Date.now());
+  const turnTimerRafRef = useRef(0);
+
+  useEffect(() => {
+    if (!currentBidder || winner || currentBidder === "O" || isBiddingPhase) {
+      cancelAnimationFrame(turnTimerRafRef.current);
+      return;
+    }
+
+    turnTimerStartRef.current = Date.now();
+    setTimeLeft(TURN_TIME);
+
+    const tick = () => {
+      const elapsed = Date.now() - turnTimerStartRef.current;
+      const remaining = Math.max(0, Math.ceil((TURN_TIME * 1000 - elapsed) / 1000));
+      setTimeLeft(remaining);
+
+      if (remaining <= 0) {
+        const emptyCells = getEmptyCells(board);
+        if (emptyCells.length > 0) {
+          const randomCell = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+          setAutoPlays(ap => {
+            const newAutoPlays = ap + 1;
+            if (newAutoPlays >= MAX_AUTO_PLAYS) {
+              setWinner("O");
+              setScore(prev => ({ ...prev, computer: prev.computer + 1 }));
+            }
+            return newAutoPlays;
+          });
+          makeMove(randomCell);
         }
-        return prev - 1;
-      });
-    }, 1000);
-    
-    return () => clearInterval(timer);
+        return;
+      }
+      turnTimerRafRef.current = requestAnimationFrame(tick);
+    };
+
+    turnTimerRafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(turnTimerRafRef.current);
   }, [currentBidder, winner, board, makeMove, isBiddingPhase]);
 
   const getCellClass = (index: number) => {
