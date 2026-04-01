@@ -349,32 +349,24 @@ export default function TournamentGame({
   // Ref for match-end detection (effect placed after handleMatchComplete definition)
   const hasHandledMatchEndRef = useRef(false);
 
-  // Timer effect
-  useEffect(() => {
-    if (!gameStarted || !currentMatch || currentMatch.match_winner || notification || isProcessing) {
-      return;
+  // Server-synced timer using RAF — no drift, no skipped seconds
+  const handleTimerExpire = useCallback(() => {
+    if (!currentMatch || !matchInfo || currentMatch.match_winner || notification || isProcessing) return;
+    
+    if (isBiddingPhase && !hasSubmittedBidRef.current) {
+      afkActions.recordAutoAction();
+      handleBidSubmit(1, true);
+    } else if (!isBiddingPhase && isMyTurn && bidWinner === matchInfo?.mySymbol) {
+      afkActions.recordAutoAction();
+      autoPlayMove();
     }
+  }, [currentMatch, matchInfo, isBiddingPhase, isMyTurn, bidWinner, notification, isProcessing]);
 
-    const timer = setInterval(() => {
-      if (currentMatch.phase_deadline) {
-        const remaining = Math.max(0, Math.floor((new Date(currentMatch.phase_deadline).getTime() - Date.now()) / 1000));
-        setTimeLeft(remaining);
-
-        if (remaining <= 0) {
-          // Auto-action on timeout — record for AFK detection
-          if (isBiddingPhase && matchInfo && !hasSubmittedBidRef.current) {
-            afkActions.recordAutoAction();
-            handleBidSubmit(1, true); // Auto-bid minimum
-          } else if (!isBiddingPhase && isMyTurn && bidWinner === matchInfo?.mySymbol) {
-            afkActions.recordAutoAction();
-            autoPlayMove();
-          }
-        }
-      }
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [gameStarted, currentMatch, notification, isProcessing, isBiddingPhase, isMyTurn, bidWinner, matchInfo]);
+  const timeLeft = useServerTimer(
+    currentMatch?.phase_deadline || null,
+    gameStarted && !currentMatch?.match_winner && !notification && !isProcessing,
+    handleTimerExpire,
+  );
 
   // Reset bid submission flag when bidding phase changes
   useEffect(() => {
