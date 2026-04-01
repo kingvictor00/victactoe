@@ -401,6 +401,7 @@ export default function TournamentGame({
         const didWin = authoritativeWinner === matchInfo.mySymbol;
         const myBidAmount = matchInfo.isPlayer1 ? bidResult.player1Bid : bidResult.player2Bid;
         
+        setIsCoinFlipping(false);
         setNotification({
           type: "tie_coin_toss",
           message: "🪙 Coin Toss Result!",
