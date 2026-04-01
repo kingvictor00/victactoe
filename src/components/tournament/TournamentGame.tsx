@@ -1530,6 +1530,11 @@ export default function TournamentGame({
                 className="w-full rounded-2xl bg-card p-4 text-center mb-3"
                 style={{ boxShadow: 'var(--shadow-card)' }}
               >
+                {notification.type === "coin_toss_animation" && (
+                  <div className="mb-2">
+                    <CoinFlipAnimation isFlipping={isCoinFlipping} />
+                  </div>
+                )}
                 <h3 className="text-base font-bold mb-0.5">{notification.message}</h3>
                 {notification.subMessage && (
                   <p className="text-xs text-muted-foreground">{notification.subMessage}</p>
