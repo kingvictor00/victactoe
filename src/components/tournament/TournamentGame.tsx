@@ -785,13 +785,15 @@ export default function TournamentGame({
         bidWinnerSymbol = generateFairCoinToss() ? "X" : "O";
 
         // Show coin toss animation for P1
+        setIsCoinFlipping(true);
         setNotification({
           type: "coin_toss_animation",
           message: "🪙 Tie! Coin Toss...",
-          subMessage: "Flipping the coin...",
+          subMessage: "Flipping the coin…",
         });
 
         await new Promise(resolve => setTimeout(resolve, COIN_TOSS_ANIMATION_TIME));
+        setIsCoinFlipping(false);
       }
 
       const newP1Coins = currentMatch.player1_coins - p1Bid;
