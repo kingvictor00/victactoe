@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Coins, Clock, Trophy, RotateCcw, Home, ArrowRight, Loader2, Volume2, VolumeX, Music } from "lucide-react";
 import GameOverModal from "./GameOverModal";
@@ -7,6 +7,7 @@ import { Slider } from "@/components/ui/slider";
 import ConfirmLeaveDialog from "@/components/ui/ConfirmLeaveDialog";
 import { useGameSounds } from "@/hooks/useGameSounds";
 import { useBackgroundMusic } from "@/hooks/useBackgroundMusic";
+import CoinFlipAnimation from "@/components/ui/CoinFlipAnimation";
 
 type Player = "X" | "O";
 type CellValue = Player | null;
