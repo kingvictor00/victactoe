@@ -849,10 +849,11 @@ export default function TournamentGame({
       // Player 2: Do NOT resolve independently.
       // Show animation for tie, then wait for P1's authoritative result via realtime/polling.
       if (isTie) {
+        setIsCoinFlipping(true);
         setNotification({
           type: "coin_toss_animation",
           message: "🪙 Tie! Coin Toss...",
-          subMessage: "Flipping the coin...",
+          subMessage: "Flipping the coin…",
         });
 
         // Fallback: if P1's result doesn't arrive within timeout, re-fetch from DB
