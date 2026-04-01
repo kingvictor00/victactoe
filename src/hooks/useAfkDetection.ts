@@ -17,11 +17,11 @@ interface AfkState {
 }
 
 const MAX_AUTO_BIDS_BEFORE_AWAY = 3;
-const RECOVERY_SECONDS = 20;
+const RECOVERY_SECONDS = 60;
 
 /**
  * Tracks consecutive auto-bids/auto-moves. After 3, marks player "away"
- * and starts a 15s recovery countdown. If player doesn't interact before
+ * and starts a 60s recovery countdown. If player doesn't interact before
  * countdown ends, triggers forfeit.
  */
 export function useAfkDetection(
@@ -35,52 +35,53 @@ export function useAfkDetection(
   });
 
   const recoveryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const countdownRef = useRef<number>(RECOVERY_SECONDS);
+  const forfeitCalledRef = useRef(false);
 
-  // Reset when match changes or game ends
-  useEffect(() => {
-    setState({ consecutiveAutoBids: 0, isAway: false, recoveryCountdown: null });
+  // Clear any running timer
+  const clearTimer = useCallback(() => {
     if (recoveryTimerRef.current) {
       clearInterval(recoveryTimerRef.current);
       recoveryTimerRef.current = null;
     }
-  }, [config.matchId, config.matchWinner]);
+  }, []);
 
-  // Start recovery countdown when away
+  // Reset when match changes or game ends
+  useEffect(() => {
+    setState({ consecutiveAutoBids: 0, isAway: false, recoveryCountdown: null });
+    clearTimer();
+    forfeitCalledRef.current = false;
+  }, [config.matchId, config.matchWinner, clearTimer]);
+
+  // Start recovery countdown when away — uses a fresh interval each time
   useEffect(() => {
     if (!state.isAway || !config.enabled || config.matchWinner) {
-      if (recoveryTimerRef.current) {
-        clearInterval(recoveryTimerRef.current);
-        recoveryTimerRef.current = null;
-      }
+      clearTimer();
       return;
     }
 
-    countdownRef.current = RECOVERY_SECONDS;
-    setState(s => ({ ...s, recoveryCountdown: RECOVERY_SECONDS }));
+    // Already running? Don't restart
+    if (recoveryTimerRef.current) return;
+
+    forfeitCalledRef.current = false;
+    let remaining = RECOVERY_SECONDS;
+    setState(s => ({ ...s, recoveryCountdown: remaining }));
 
     recoveryTimerRef.current = setInterval(() => {
-      countdownRef.current -= 1;
-      const val = countdownRef.current;
-      setState(s => ({ ...s, recoveryCountdown: val }));
+      remaining -= 1;
+      setState(s => ({ ...s, recoveryCountdown: remaining }));
 
-      if (val <= 0) {
-        if (recoveryTimerRef.current) {
-          clearInterval(recoveryTimerRef.current);
-          recoveryTimerRef.current = null;
+      if (remaining <= 0) {
+        clearTimer();
+        if (!forfeitCalledRef.current) {
+          forfeitCalledRef.current = true;
+          console.warn('[AFK] Recovery countdown expired — forfeiting');
+          onForfeit();
         }
-        console.warn('[AFK] Recovery countdown expired — forfeiting');
-        onForfeit();
       }
     }, 1000);
 
-    return () => {
-      if (recoveryTimerRef.current) {
-        clearInterval(recoveryTimerRef.current);
-        recoveryTimerRef.current = null;
-      }
-    };
-  }, [state.isAway, config.enabled, config.matchWinner, onForfeit]);
+    return () => clearTimer();
+  }, [state.isAway, config.enabled, config.matchWinner, onForfeit, clearTimer]);
 
   /** Call this whenever an auto-action fires (auto-bid or auto-move) */
   const recordAutoAction = useCallback(() => {
@@ -98,20 +99,16 @@ export function useAfkDetection(
   const recordManualAction = useCallback(() => {
     setState(prev => {
       if (prev.consecutiveAutoBids === 0 && !prev.isAway) return prev;
-      if (recoveryTimerRef.current) {
-        clearInterval(recoveryTimerRef.current);
-        recoveryTimerRef.current = null;
-      }
+      clearTimer();
+      forfeitCalledRef.current = false;
       return { consecutiveAutoBids: 0, isAway: false, recoveryCountdown: null };
     });
-  }, []);
+  }, [clearTimer]);
 
   // Cleanup
   useEffect(() => {
-    return () => {
-      if (recoveryTimerRef.current) clearInterval(recoveryTimerRef.current);
-    };
-  }, []);
+    return () => clearTimer();
+  }, [clearTimer]);
 
   return {
     ...state,
