@@ -13,7 +13,9 @@ import { useGameSounds } from "@/hooks/useGameSounds";
 import { useBackgroundMusic } from "@/hooks/useBackgroundMusic";
 import { useAfkDetection } from "@/hooks/useAfkDetection";
 import { useHeartbeat } from "@/hooks/useHeartbeat";
+import { useServerTimer } from "@/hooks/useServerTimer";
 import { getDeviceId, saveMatchSession, clearMatchSession } from "@/hooks/usePlayerIdentity";
+import CoinFlipAnimation from "@/components/ui/CoinFlipAnimation";
 import { 
   createNextRoundMatches, 
   getRemainingPlayers,
@@ -114,9 +116,9 @@ export default function TournamentGame({
   const [showConfirmLeave, setShowConfirmLeave] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [playerBid, setPlayerBid] = useState(10);
-  const [timeLeft, setTimeLeft] = useState(PHASE_TIME);
   const [notification, setNotification] = useState<Notification | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isCoinFlipping, setIsCoinFlipping] = useState(false);
   const [showTournamentWinner, setShowTournamentWinner] = useState(false);
   const [tournamentRankings, setTournamentRankings] = useState<{ id: string; name: string; position: number; isCurrentPlayer: boolean }[]>([]);
   const [totalPlayerCount, setTotalPlayerCount] = useState(0);
@@ -346,32 +348,24 @@ export default function TournamentGame({
   // Ref for match-end detection (effect placed after handleMatchComplete definition)
   const hasHandledMatchEndRef = useRef(false);
 
-  // Timer effect
-  useEffect(() => {
-    if (!gameStarted || !currentMatch || currentMatch.match_winner || notification || isProcessing) {
-      return;
+  // Server-synced timer using RAF — no drift, no skipped seconds
+  const handleTimerExpire = useCallback(() => {
+    if (!currentMatch || !matchInfo || currentMatch.match_winner || notification || isProcessing) return;
+    
+    if (isBiddingPhase && !hasSubmittedBidRef.current) {
+      afkActions.recordAutoAction();
+      handleBidSubmit(1, true);
+    } else if (!isBiddingPhase && isMyTurn && bidWinner === matchInfo?.mySymbol) {
+      afkActions.recordAutoAction();
+      autoPlayMove();
     }
+  }, [currentMatch, matchInfo, isBiddingPhase, isMyTurn, bidWinner, notification, isProcessing]);
 
-    const timer = setInterval(() => {
-      if (currentMatch.phase_deadline) {
-        const remaining = Math.max(0, Math.floor((new Date(currentMatch.phase_deadline).getTime() - Date.now()) / 1000));
-        setTimeLeft(remaining);
-
-        if (remaining <= 0) {
-          // Auto-action on timeout — record for AFK detection
-          if (isBiddingPhase && matchInfo && !hasSubmittedBidRef.current) {
-            afkActions.recordAutoAction();
-            handleBidSubmit(1, true); // Auto-bid minimum
-          } else if (!isBiddingPhase && isMyTurn && bidWinner === matchInfo?.mySymbol) {
-            afkActions.recordAutoAction();
-            autoPlayMove();
-          }
-        }
-      }
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [gameStarted, currentMatch, notification, isProcessing, isBiddingPhase, isMyTurn, bidWinner, matchInfo]);
+  const timeLeft = useServerTimer(
+    currentMatch?.phase_deadline || null,
+    gameStarted && !currentMatch?.match_winner && !notification && !isProcessing,
+    handleTimerExpire,
+  );
 
   // Reset bid submission flag when bidding phase changes
   useEffect(() => {
@@ -407,6 +401,7 @@ export default function TournamentGame({
         const didWin = authoritativeWinner === matchInfo.mySymbol;
         const myBidAmount = matchInfo.isPlayer1 ? bidResult.player1Bid : bidResult.player2Bid;
         
+        setIsCoinFlipping(false);
         setNotification({
           type: "tie_coin_toss",
           message: "🪙 Coin Toss Result!",
@@ -791,13 +786,15 @@ export default function TournamentGame({
         bidWinnerSymbol = generateFairCoinToss() ? "X" : "O";
 
         // Show coin toss animation for P1
+        setIsCoinFlipping(true);
         setNotification({
           type: "coin_toss_animation",
           message: "🪙 Tie! Coin Toss...",
-          subMessage: "Flipping the coin...",
+          subMessage: "Flipping the coin…",
         });
 
         await new Promise(resolve => setTimeout(resolve, COIN_TOSS_ANIMATION_TIME));
+        setIsCoinFlipping(false);
       }
 
       const newP1Coins = currentMatch.player1_coins - p1Bid;
@@ -853,10 +850,11 @@ export default function TournamentGame({
       // Player 2: Do NOT resolve independently.
       // Show animation for tie, then wait for P1's authoritative result via realtime/polling.
       if (isTie) {
+        setIsCoinFlipping(true);
         setNotification({
           type: "coin_toss_animation",
           message: "🪙 Tie! Coin Toss...",
-          subMessage: "Flipping the coin...",
+          subMessage: "Flipping the coin…",
         });
 
         // Fallback: if P1's result doesn't arrive within timeout, re-fetch from DB
@@ -1533,6 +1531,11 @@ export default function TournamentGame({
                 className="w-full rounded-2xl bg-card p-4 text-center mb-3"
                 style={{ boxShadow: 'var(--shadow-card)' }}
               >
+                {notification.type === "coin_toss_animation" && (
+                  <div className="mb-2">
+                    <CoinFlipAnimation isFlipping={isCoinFlipping} />
+                  </div>
+                )}
                 <h3 className="text-base font-bold mb-0.5">{notification.message}</h3>
                 {notification.subMessage && (
                   <p className="text-xs text-muted-foreground">{notification.subMessage}</p>
