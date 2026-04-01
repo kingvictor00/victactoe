@@ -116,7 +116,6 @@ export default function TournamentGame({
   const [showConfirmLeave, setShowConfirmLeave] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [playerBid, setPlayerBid] = useState(10);
-  const [timeLeft, setTimeLeft] = useState(PHASE_TIME);
   const [notification, setNotification] = useState<Notification | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isCoinFlipping, setIsCoinFlipping] = useState(false);
