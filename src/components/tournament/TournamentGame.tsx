@@ -329,6 +329,14 @@ export default function TournamentGame({
           title: "Match Started! 🎮",
           description: `Best of 3 - You are playing as ${matchInfo.mySymbol}`,
         });
+
+        // Auto-start background music on match begin (unless user muted)
+        if (isMusicMuted === false) {
+          // already playing
+        } else if (localStorage.getItem('game_music_muted') === 'true') {
+          // User explicitly unmuted before — start music
+          toggleMusic();
+        }
       }
     };
 
