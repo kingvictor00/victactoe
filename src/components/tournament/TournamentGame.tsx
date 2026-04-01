@@ -329,6 +329,14 @@ export default function TournamentGame({
           title: "Match Started! 🎮",
           description: `Best of 3 - You are playing as ${matchInfo.mySymbol}`,
         });
+
+        // Auto-start background music on match begin (unless user muted)
+        if (isMusicMuted === false) {
+          // already playing
+        } else if (localStorage.getItem('game_music_muted') === 'true') {
+          // User explicitly unmuted before — start music
+          toggleMusic();
+        }
       }
     };
 
@@ -1473,26 +1481,22 @@ export default function TournamentGame({
 
         {/* Middle: Board + Overlays (flex-1 fills remaining space) */}
         <div className="flex-1 flex flex-col items-center justify-center min-h-0">
-          {/* AFK Warning Overlay */}
+          {/* AFK Warning Overlay — compact banner */}
           <AnimatePresence>
             {afkActions.isAway && afkActions.recoveryCountdown !== null && (
               <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                className="w-full rounded-2xl bg-destructive/10 ring-2 ring-destructive p-4 text-center mb-3"
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="w-full rounded-xl bg-destructive/10 ring-1 ring-destructive px-3 py-2 flex items-center gap-3 mb-2"
               >
-                <AlertTriangle className="w-8 h-8 mx-auto mb-2 text-destructive" />
-                <h3 className="text-base font-bold text-destructive mb-1">⚠️ Are you still there?</h3>
-                <p className="text-sm text-muted-foreground mb-2">
-                  You've been inactive. Match will be forfeited in:
-                </p>
-                <div className="text-3xl font-bold text-destructive">
-                  {afkActions.recoveryCountdown}s
+                <AlertTriangle className="w-5 h-5 text-destructive shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-destructive">AFK — forfeit in {afkActions.recoveryCountdown}s</p>
                 </div>
                 <button
                   onClick={() => afkActions.recordManualAction()}
-                  className="btn-game-primary mt-3 px-6 py-2 text-sm"
+                  className="btn-game-primary px-3 py-1 text-xs shrink-0 rounded-lg"
                 >
                   I'm here!
                 </button>
@@ -1500,26 +1504,21 @@ export default function TournamentGame({
             )}
           </AnimatePresence>
 
-          {/* Opponent Disconnected Overlay */}
+          {/* Opponent Disconnected Overlay — compact banner */}
           <AnimatePresence>
             {heartbeat.opponentDisconnected && heartbeat.opponentGraceRemaining !== null && heartbeat.opponentGraceRemaining > 0 && (
               <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                className="w-full rounded-2xl bg-amber-500/10 ring-2 ring-amber-500 p-4 text-center mb-3"
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="w-full rounded-xl bg-amber-500/10 ring-1 ring-amber-500 px-3 py-2 flex items-center gap-3 mb-2"
               >
-                <WifiOff className="w-8 h-8 mx-auto mb-2 text-amber-500" />
-                <h3 className="text-base font-bold text-amber-600 dark:text-amber-400 mb-1">Opponent Disconnected</h3>
-                <p className="text-sm text-muted-foreground mb-2">
-                  Waiting for {matchInfo?.opponent.player_name} to reconnect...
-                </p>
-                <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">
-                  {heartbeat.opponentGraceRemaining}s
+                <WifiOff className="w-5 h-5 text-amber-500 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+                    {matchInfo?.opponent.player_name} disconnected — {heartbeat.opponentGraceRemaining}s
+                  </p>
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Match will be forfeited if they don't return
-                </p>
               </motion.div>
             )}
           </AnimatePresence>
