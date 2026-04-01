@@ -119,6 +119,7 @@ export default function TournamentGame({
   const [timeLeft, setTimeLeft] = useState(PHASE_TIME);
   const [notification, setNotification] = useState<Notification | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isCoinFlipping, setIsCoinFlipping] = useState(false);
   const [showTournamentWinner, setShowTournamentWinner] = useState(false);
   const [tournamentRankings, setTournamentRankings] = useState<{ id: string; name: string; position: number; isCurrentPlayer: boolean }[]>([]);
   const [totalPlayerCount, setTotalPlayerCount] = useState(0);
