@@ -889,14 +889,14 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
           </div>
 
           {/* Winner Announcement */}
-          <AnimatePresence>
+          <AnimatePresence mode="wait">
             {winner && !gameOver && !notification && (
-              <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="w-full rounded-2xl bg-card p-4 text-center mt-3" style={{ boxShadow: 'var(--shadow-card)' }}>
+              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.2 }} className="w-full rounded-2xl bg-game-success/10 ring-1 ring-game-success p-4 text-center mt-3">
                 <Trophy className="w-8 h-8 mx-auto mb-1.5 text-game-coin" />
                 <h3 className="text-lg font-bold mb-0.5">
                   {winner === "X" ? "You Win This Round! 🎉" : winner === "O" ? "Computer Wins 💻" : "It's a Tie! 🤝"}
                 </h3>
-                <p className="text-xs text-muted-foreground">Next round starting...</p>
+                <p className="text-xs text-muted-foreground">Score: {score.player} - {score.computer} • Next round starting...</p>
               </motion.div>
             )}
           </AnimatePresence>
