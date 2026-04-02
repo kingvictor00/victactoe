@@ -563,13 +563,13 @@ export default function TournamentGame({
           winReason = "Won by economic advantage";
         }
         
-        setNotification({
-          type: didWinRound ? "round_win" : "round_lose",
-          message: roundWinner === "tie" 
-            ? "🤝 Round Tied!" 
-            : (didWinRound ? "🎉 You Won This Round!" : `${matchInfo.opponent.player_name} Won This Round`),
-          subMessage: `${winReason} • Score: ${myScore} - ${oppScore}`,
-        });
+      setNotification({
+        type: didWinRound ? "round_win" : "round_lose",
+        message: roundWinner === "tie" 
+          ? "🤝 Round Tied!" 
+          : (didWinRound ? "🎉 You Won This Round!" : `${matchInfo.opponent.player_name} Won This Round`),
+        subMessage: `${winReason} • Score: ${myScore} - ${oppScore} • Next round starting...`,
+      });
         
         play(didWinRound ? "win" : "lose");
       }
