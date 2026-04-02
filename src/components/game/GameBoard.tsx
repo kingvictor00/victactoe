@@ -453,6 +453,14 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
         });
         setCoinTossAnimation(false);
         
+        const turnHolder = bidWinner === "X" ? "You" : "Computer";
+        setNotification({
+          type: "tie_coin_toss",
+          message: bidWinner === "X" ? "🎯 You Won the Coin Toss!" : "💻 Computer Won the Coin Toss!",
+          subMessage: `Both bid $${actualBid}. ${turnHolder} won the toss! → ${turnHolder} places next`,
+          winner: bidWinner,
+        });
+        
         setTimeout(() => {
           setNotification(null);
           setCurrentBidder(bidWinner);
