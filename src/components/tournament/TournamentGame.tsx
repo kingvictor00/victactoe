@@ -957,10 +957,11 @@ export default function TournamentGame({
         winReason = "Won by economic advantage";
       }
 
+      const matchOver = newP1Score >= 2 || newP2Score >= 2;
       setNotification({
         type: didWinRound ? "round_win" : "round_lose",
         message: didWinRound ? "🎉 You Won This Round!" : `${matchInfo.opponent.player_name} Won This Round`,
-        subMessage: `${winReason} • Score: ${matchInfo.isPlayer1 ? newP1Score : newP2Score} - ${matchInfo.isPlayer1 ? newP2Score : newP1Score}`,
+        subMessage: `${winReason} • Score: ${matchInfo.isPlayer1 ? newP1Score : newP2Score} - ${matchInfo.isPlayer1 ? newP2Score : newP1Score}${matchOver ? '' : ' • Next round starting...'}`,
       });
 
       play(didWinRound ? "win" : "lose");
