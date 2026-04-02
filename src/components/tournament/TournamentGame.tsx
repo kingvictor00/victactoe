@@ -1642,22 +1642,14 @@ export default function TournamentGame({
             )}
           </AnimatePresence>
 
-          {/* Your Turn Indicator */}
+          {/* Turn timer (inline, no separate card) */}
           {!isBiddingPhase && !winner && !notification && !isProcessing && bidWinner === matchInfo?.mySymbol && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="w-full rounded-xl bg-primary/10 ring-2 ring-primary p-3 text-center mb-2"
-            >
-              <div className="flex items-center justify-center gap-2 mb-1">
-                <div className={`timer-ring w-9 h-9 text-sm ${timeLeft <= 5 ? "text-game-warning" : "text-foreground"}`}>
-                  <Clock className="w-2.5 h-2.5 absolute top-0 right-0 opacity-50" />
-                  {timeLeft}s
-                </div>
+            <div className="flex justify-center mb-2">
+              <div className={`timer-ring w-10 h-10 text-sm ${timeLeft <= 5 ? "text-game-warning" : "text-foreground"}`}>
+                <Clock className="w-2.5 h-2.5 absolute top-0 right-0 opacity-50" />
+                {timeLeft}s
               </div>
-              <h3 className="text-sm font-bold text-primary">🎮 Your Turn!</h3>
-              <p className="text-[10px] text-muted-foreground">Tap any empty cell to place your {matchInfo?.mySymbol}</p>
-            </motion.div>
+            </div>
           )}
 
           {/* Opponent's Turn */}
