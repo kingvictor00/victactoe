@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { Trophy, Home, Crown, Medal, Star } from "lucide-react";
+import { useMemo } from "react";
 import RobohashAvatar from "@/components/ui/RobohashAvatar";
 
 interface PlayerRanking {
@@ -24,6 +25,19 @@ export default function TournamentWinner({
   currentPlayerId,
   onHome,
 }: TournamentWinnerProps) {
+  const floatingStars = useMemo(() =>
+    Array.from({ length: 30 }, (_, i) => ({
+      id: i,
+      symbol: i % 2 === 0 ? "✕" : "○",
+      x: Math.random() * 100,
+      y: Math.random() * 100,
+      size: Math.random() * 16 + 8,
+      duration: Math.random() * 25 + 20,
+      delay: Math.random() * 10,
+      opacity: Math.random() * 0.15 + 0.05,
+    })),
+  []);
+
   const currentPlayerRank = rankings.find(r => r.id === currentPlayerId);
   const isWinner = currentPlayerRank?.position === 1;
 
@@ -77,8 +91,38 @@ export default function TournamentWinner({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-foreground/30 backdrop-blur-md flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 bg-background/90 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-hidden"
         >
+          {/* Floating X/O star elements */}
+          {floatingStars.map((star) => (
+            <motion.span
+              key={star.id}
+              className={star.symbol === "✕" ? "text-primary" : "text-secondary"}
+              style={{
+                position: "absolute",
+                left: `${star.x}%`,
+                top: `${star.y}%`,
+                fontSize: `${star.size}px`,
+                opacity: star.opacity,
+                pointerEvents: "none",
+                willChange: "transform",
+              }}
+              animate={{
+                y: [0, -40, 0],
+                x: [0, Math.sin(star.id) * 15, 0],
+                rotate: [0, star.symbol === "✕" ? 90 : -90, 0],
+                scale: [1, 1.2, 1],
+              }}
+              transition={{
+                duration: star.duration,
+                delay: star.delay,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }}
+            >
+              {star.symbol}
+            </motion.span>
+          ))}
           <motion.div
             initial={{ scale: 0.8, y: 30 }}
             animate={{ scale: 1, y: 0 }}
