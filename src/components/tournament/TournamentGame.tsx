@@ -402,11 +402,10 @@ export default function TournamentGame({
         const myBidAmount = matchInfo.isPlayer1 ? bidResult.player1Bid : bidResult.player2Bid;
         
         setIsCoinFlipping(false);
-              const turnHolder = didWin ? "You" : matchInfo.opponent.player_name;
         setNotification({
           type: "tie_coin_toss",
           message: "🪙 Coin Toss Result!",
-          subMessage: `Both bid $${myBidAmount}. ${turnHolder} won the toss! → ${turnHolder} places next`,
+          subMessage: `Both bid $${myBidAmount}. ${didWin ? "You" : matchInfo.opponent.player_name} won the toss!`,
         });
         
         setTimeout(() => {
@@ -437,15 +436,14 @@ export default function TournamentGame({
         const oppBidAmount = matchInfo.isPlayer1 ? bidResult.player2Bid : bidResult.player1Bid;
         const isTie = bidResult.player1Bid === bidResult.player2Bid;
         
-        const turnHolder = didWin ? "You" : matchInfo.opponent.player_name;
         setNotification({
           type: isTie ? "tie_coin_toss" : (didWin ? "bid_win" : "bid_lose"),
           message: isTie 
             ? "🪙 Coin Toss Result!" 
             : (didWin ? "🎯 You Won the Bid!" : `💻 ${matchInfo.opponent.player_name} Won!`),
           subMessage: isTie 
-            ? `Both bid $${myBidAmount}. ${turnHolder} won the toss! → ${turnHolder} places next`
-            : `You bid $${myBidAmount} vs $${oppBidAmount} → ${turnHolder} places next`,
+            ? `Both bid $${myBidAmount}. ${didWin ? "You" : matchInfo.opponent.player_name} won the toss!`
+            : `You bid $${myBidAmount} vs $${oppBidAmount}`,
         });
         
         setTimeout(() => {
@@ -563,13 +561,13 @@ export default function TournamentGame({
           winReason = "Won by economic advantage";
         }
         
-      setNotification({
-        type: didWinRound ? "round_win" : "round_lose",
-        message: roundWinner === "tie" 
-          ? "🤝 Round Tied!" 
-          : (didWinRound ? "🎉 You Won This Round!" : `${matchInfo.opponent.player_name} Won This Round`),
-        subMessage: `${winReason} • Score: ${myScore} - ${oppScore} • Next round starting...`,
-      });
+        setNotification({
+          type: didWinRound ? "round_win" : "round_lose",
+          message: roundWinner === "tie" 
+            ? "🤝 Round Tied!" 
+            : (didWinRound ? "🎉 You Won This Round!" : `${matchInfo.opponent.player_name} Won This Round`),
+          subMessage: `${winReason} • Score: ${myScore} - ${oppScore}`,
+        });
         
         play(didWinRound ? "win" : "lose");
       }
@@ -828,18 +826,17 @@ export default function TournamentGame({
       const myBidAmount = p1Bid;
       const oppBidAmount = p2Bid;
 
-      const turnHolder = didWin ? "You" : matchInfo.opponent.player_name;
       if (isTie) {
         setNotification({
           type: "tie_coin_toss",
           message: "🪙 Coin Toss Result!",
-          subMessage: `Both bid $${myBidAmount}. ${turnHolder} won the toss! → ${turnHolder} places next`,
+          subMessage: `Both bid $${myBidAmount}. ${didWin ? "You" : matchInfo.opponent.player_name} won the toss!`,
         });
       } else {
         setNotification({
           type: didWin ? "bid_win" : "bid_lose",
           message: didWin ? "🎯 You Won the Bid!" : `💻 ${matchInfo.opponent.player_name} Won!`,
-          subMessage: `You bid $${myBidAmount} vs $${oppBidAmount} → ${turnHolder} places next`,
+          subMessage: `You bid $${myBidAmount} vs $${oppBidAmount}`,
         });
       }
 
@@ -957,11 +954,10 @@ export default function TournamentGame({
         winReason = "Won by economic advantage";
       }
 
-      const matchOver = newP1Score >= 2 || newP2Score >= 2;
       setNotification({
         type: didWinRound ? "round_win" : "round_lose",
         message: didWinRound ? "🎉 You Won This Round!" : `${matchInfo.opponent.player_name} Won This Round`,
-        subMessage: `${winReason} • Score: ${matchInfo.isPlayer1 ? newP1Score : newP2Score} - ${matchInfo.isPlayer1 ? newP2Score : newP1Score}${matchOver ? '' : ' • Next round starting...'}`,
+        subMessage: `${winReason} • Score: ${matchInfo.isPlayer1 ? newP1Score : newP2Score} - ${matchInfo.isPlayer1 ? newP2Score : newP1Score}`,
       });
 
       play(didWinRound ? "win" : "lose");
@@ -1526,15 +1522,14 @@ export default function TournamentGame({
           </AnimatePresence>
 
           {/* Notification Overlay */}
-          <AnimatePresence mode="wait">
+          <AnimatePresence>
             {notification && (
               <motion.div
-                key={notification.type + notification.message}
-                initial={{ opacity: 0, scale: 0.95 }}
+                initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ duration: 0.2 }}
-                className="w-full rounded-2xl bg-game-success/10 ring-1 ring-game-success p-4 text-center mb-3"
+                exit={{ opacity: 0, scale: 0.9 }}
+                className="w-full rounded-2xl bg-card p-4 text-center mb-3"
+                style={{ boxShadow: 'var(--shadow-card)' }}
               >
                 {notification.type === "coin_toss_animation" && (
                   <div className="mb-2">
@@ -1642,14 +1637,22 @@ export default function TournamentGame({
             )}
           </AnimatePresence>
 
-          {/* Turn timer (inline, no separate card) */}
+          {/* Your Turn Indicator */}
           {!isBiddingPhase && !winner && !notification && !isProcessing && bidWinner === matchInfo?.mySymbol && (
-            <div className="flex justify-center mb-2">
-              <div className={`timer-ring w-10 h-10 text-sm ${timeLeft <= 5 ? "text-game-warning" : "text-foreground"}`}>
-                <Clock className="w-2.5 h-2.5 absolute top-0 right-0 opacity-50" />
-                {timeLeft}s
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="w-full rounded-xl bg-primary/10 ring-2 ring-primary p-3 text-center mb-2"
+            >
+              <div className="flex items-center justify-center gap-2 mb-1">
+                <div className={`timer-ring w-9 h-9 text-sm ${timeLeft <= 5 ? "text-game-warning" : "text-foreground"}`}>
+                  <Clock className="w-2.5 h-2.5 absolute top-0 right-0 opacity-50" />
+                  {timeLeft}s
+                </div>
               </div>
-            </div>
+              <h3 className="text-sm font-bold text-primary">🎮 Your Turn!</h3>
+              <p className="text-[10px] text-muted-foreground">Tap any empty cell to place your {matchInfo?.mySymbol}</p>
+            </motion.div>
           )}
 
           {/* Opponent's Turn */}
@@ -1688,16 +1691,14 @@ export default function TournamentGame({
           </div>
 
           {/* Round Winner */}
-          <AnimatePresence mode="wait">
+          <AnimatePresence>
             {winner && !currentMatch.match_winner && !notification && (
-              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.2 }} className="w-full rounded-2xl bg-game-success/10 ring-1 ring-game-success p-4 text-center mt-3">
+              <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="w-full rounded-2xl bg-card p-4 text-center mt-3" style={{ boxShadow: 'var(--shadow-card)' }}>
                 <Trophy className="w-8 h-8 mx-auto mb-1.5 text-game-coin" />
                 <h3 className="text-lg font-bold mb-0.5">
                   {winner === matchInfo?.mySymbol ? "You Won This Round! 🎉" : winner === "tie" ? "It's a Tie! 🤝" : `${matchInfo?.opponent.player_name} Wins 💪`}
                 </h3>
-                <p className="text-xs text-muted-foreground">
-                  Score: {matchInfo?.myScore} - {matchInfo?.opponentScore} • Next round starting...
-                </p>
+                <p className="text-xs text-muted-foreground">Next round starting...</p>
               </motion.div>
             )}
           </AnimatePresence>
