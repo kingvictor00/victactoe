@@ -453,6 +453,14 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
         });
         setCoinTossAnimation(false);
         
+        const turnHolder = bidWinner === "X" ? "You" : "Computer";
+        setNotification({
+          type: "tie_coin_toss",
+          message: bidWinner === "X" ? "🎯 You Won the Coin Toss!" : "💻 Computer Won the Coin Toss!",
+          subMessage: `Both bid $${actualBid}. ${turnHolder} won the toss! → ${turnHolder} places next`,
+          winner: bidWinner,
+        });
+        
         setTimeout(() => {
           setNotification(null);
           setCurrentBidder(bidWinner);
@@ -467,11 +475,12 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
       return;
     }
     
-    // Show bid result notification with delay
+    // Show bid result notification with turn info
+    const turnHolder = bidWinner === "X" ? "You" : "Computer";
     setNotification({
       type: bidWinner === "X" ? "bid_win" : "bid_lose",
       message: bidWinner === "X" ? "🎯 You Won the Bid!" : "💻 Computer Won the Bid!",
-      subMessage: `You bid $${actualBid} vs Computer's $${actualComputerBid}`,
+      subMessage: `You bid $${actualBid} vs Computer's $${actualComputerBid} → ${turnHolder} places next`,
     });
     
     setTimeout(() => {
@@ -752,14 +761,15 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
         {/* Middle: Board + Overlays (flex-1 to fill remaining space) */}
         <div className="flex-1 flex flex-col items-center justify-center min-h-0">
           {/* Notification Overlay */}
-          <AnimatePresence>
+          <AnimatePresence mode="wait">
             {notification && (
               <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
+                key={notification.type + notification.message}
+                initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                className="w-full rounded-2xl bg-card p-4 text-center mb-3"
-                style={{ boxShadow: 'var(--shadow-card)' }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.2 }}
+                className="w-full rounded-2xl bg-game-success/10 ring-1 ring-game-success p-4 text-center mb-3"
               >
                 {coinTossAnimation && (
                   <div className="mb-2">
@@ -879,14 +889,14 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
           </div>
 
           {/* Winner Announcement */}
-          <AnimatePresence>
+          <AnimatePresence mode="wait">
             {winner && !gameOver && !notification && (
-              <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="w-full rounded-2xl bg-card p-4 text-center mt-3" style={{ boxShadow: 'var(--shadow-card)' }}>
+              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.2 }} className="w-full rounded-2xl bg-game-success/10 ring-1 ring-game-success p-4 text-center mt-3">
                 <Trophy className="w-8 h-8 mx-auto mb-1.5 text-game-coin" />
                 <h3 className="text-lg font-bold mb-0.5">
                   {winner === "X" ? "You Win This Round! 🎉" : winner === "O" ? "Computer Wins 💻" : "It's a Tie! 🤝"}
                 </h3>
-                <p className="text-xs text-muted-foreground">Next round starting...</p>
+                <p className="text-xs text-muted-foreground">Score: {score.player} - {score.computer} • Next round starting...</p>
               </motion.div>
             )}
           </AnimatePresence>
