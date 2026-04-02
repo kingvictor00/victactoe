@@ -828,17 +828,18 @@ export default function TournamentGame({
       const myBidAmount = p1Bid;
       const oppBidAmount = p2Bid;
 
+      const turnHolder = didWin ? "You" : matchInfo.opponent.player_name;
       if (isTie) {
         setNotification({
           type: "tie_coin_toss",
           message: "🪙 Coin Toss Result!",
-          subMessage: `Both bid $${myBidAmount}. ${didWin ? "You" : matchInfo.opponent.player_name} won the toss!`,
+          subMessage: `Both bid $${myBidAmount}. ${turnHolder} won the toss! → ${turnHolder} places next`,
         });
       } else {
         setNotification({
           type: didWin ? "bid_win" : "bid_lose",
           message: didWin ? "🎯 You Won the Bid!" : `💻 ${matchInfo.opponent.player_name} Won!`,
-          subMessage: `You bid $${myBidAmount} vs $${oppBidAmount}`,
+          subMessage: `You bid $${myBidAmount} vs $${oppBidAmount} → ${turnHolder} places next`,
         });
       }
 
