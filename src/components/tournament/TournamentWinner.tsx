@@ -93,6 +93,36 @@ export default function TournamentWinner({
           exit={{ opacity: 0 }}
           className="fixed inset-0 bg-background/90 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-hidden"
         >
+          {/* Floating X/O star elements */}
+          {floatingStars.map((star) => (
+            <motion.span
+              key={star.id}
+              className={star.symbol === "✕" ? "text-primary" : "text-secondary"}
+              style={{
+                position: "absolute",
+                left: `${star.x}%`,
+                top: `${star.y}%`,
+                fontSize: `${star.size}px`,
+                opacity: star.opacity,
+                pointerEvents: "none",
+                willChange: "transform",
+              }}
+              animate={{
+                y: [0, -40, 0],
+                x: [0, Math.sin(star.id) * 15, 0],
+                rotate: [0, star.symbol === "✕" ? 90 : -90, 0],
+                scale: [1, 1.2, 1],
+              }}
+              transition={{
+                duration: star.duration,
+                delay: star.delay,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }}
+            >
+              {star.symbol}
+            </motion.span>
+          ))}
           <motion.div
             initial={{ scale: 0.8, y: 30 }}
             animate={{ scale: 1, y: 0 }}
