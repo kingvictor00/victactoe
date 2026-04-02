@@ -25,6 +25,19 @@ export default function TournamentWinner({
   currentPlayerId,
   onHome,
 }: TournamentWinnerProps) {
+  const floatingStars = useMemo(() =>
+    Array.from({ length: 30 }, (_, i) => ({
+      id: i,
+      symbol: i % 2 === 0 ? "✕" : "○",
+      x: Math.random() * 100,
+      y: Math.random() * 100,
+      size: Math.random() * 16 + 8,
+      duration: Math.random() * 25 + 20,
+      delay: Math.random() * 10,
+      opacity: Math.random() * 0.15 + 0.05,
+    })),
+  []);
+
   const currentPlayerRank = rankings.find(r => r.id === currentPlayerId);
   const isWinner = currentPlayerRank?.position === 1;
 
