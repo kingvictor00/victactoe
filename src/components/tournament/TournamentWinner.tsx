@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { Trophy, Home, Crown, Medal, Star } from "lucide-react";
+import { useMemo } from "react";
 import RobohashAvatar from "@/components/ui/RobohashAvatar";
 
 interface PlayerRanking {
