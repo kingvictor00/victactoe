@@ -402,10 +402,11 @@ export default function TournamentGame({
         const myBidAmount = matchInfo.isPlayer1 ? bidResult.player1Bid : bidResult.player2Bid;
         
         setIsCoinFlipping(false);
+              const turnHolder = didWin ? "You" : matchInfo.opponent.player_name;
         setNotification({
           type: "tie_coin_toss",
           message: "🪙 Coin Toss Result!",
-          subMessage: `Both bid $${myBidAmount}. ${didWin ? "You" : matchInfo.opponent.player_name} won the toss!`,
+          subMessage: `Both bid $${myBidAmount}. ${turnHolder} won the toss! → ${turnHolder} places next`,
         });
         
         setTimeout(() => {
