@@ -475,11 +475,12 @@ export default function GameBoard({ onBack, difficulty }: GameBoardProps) {
       return;
     }
     
-    // Show bid result notification with delay
+    // Show bid result notification with turn info
+    const turnHolder = bidWinner === "X" ? "You" : "Computer";
     setNotification({
       type: bidWinner === "X" ? "bid_win" : "bid_lose",
       message: bidWinner === "X" ? "🎯 You Won the Bid!" : "💻 Computer Won the Bid!",
-      subMessage: `You bid $${actualBid} vs Computer's $${actualComputerBid}`,
+      subMessage: `You bid $${actualBid} vs Computer's $${actualComputerBid} → ${turnHolder} places next`,
     });
     
     setTimeout(() => {
