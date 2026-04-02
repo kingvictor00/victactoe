@@ -1526,14 +1526,15 @@ export default function TournamentGame({
           </AnimatePresence>
 
           {/* Notification Overlay */}
-          <AnimatePresence>
+          <AnimatePresence mode="wait">
             {notification && (
               <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
+                key={notification.type + notification.message}
+                initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                className="w-full rounded-2xl bg-card p-4 text-center mb-3"
-                style={{ boxShadow: 'var(--shadow-card)' }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.2 }}
+                className="w-full rounded-2xl bg-game-success/10 ring-1 ring-game-success p-4 text-center mb-3"
               >
                 {notification.type === "coin_toss_animation" && (
                   <div className="mb-2">
