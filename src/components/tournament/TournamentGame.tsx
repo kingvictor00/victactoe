@@ -1688,14 +1688,16 @@ export default function TournamentGame({
           </div>
 
           {/* Round Winner */}
-          <AnimatePresence>
+          <AnimatePresence mode="wait">
             {winner && !currentMatch.match_winner && !notification && (
-              <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="w-full rounded-2xl bg-card p-4 text-center mt-3" style={{ boxShadow: 'var(--shadow-card)' }}>
+              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.2 }} className="w-full rounded-2xl bg-game-success/10 ring-1 ring-game-success p-4 text-center mt-3">
                 <Trophy className="w-8 h-8 mx-auto mb-1.5 text-game-coin" />
                 <h3 className="text-lg font-bold mb-0.5">
                   {winner === matchInfo?.mySymbol ? "You Won This Round! 🎉" : winner === "tie" ? "It's a Tie! 🤝" : `${matchInfo?.opponent.player_name} Wins 💪`}
                 </h3>
-                <p className="text-xs text-muted-foreground">Next round starting...</p>
+                <p className="text-xs text-muted-foreground">
+                  Score: {matchInfo?.myScore} - {matchInfo?.opponentScore} • Next round starting...
+                </p>
               </motion.div>
             )}
           </AnimatePresence>
