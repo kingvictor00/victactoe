@@ -95,6 +95,47 @@ const boardArrayToString = (board: Board): string => {
   return board.map(c => c === null ? '-' : c).join('');
 };
 
+const evaluateBoardState = (currentBoard: Board, p1Coins: number, p2Coins: number): { winner: Player | "tie" | null; line: number[] | null } => {
+  for (const combo of WINNING_COMBINATIONS) {
+    const [a, b, c] = combo;
+    if (currentBoard[a] && currentBoard[a] === currentBoard[b] && currentBoard[a] === currentBoard[c]) {
+      return { winner: currentBoard[a], line: combo };
+    }
+  }
+
+  if (currentBoard.every(cell => cell !== null)) {
+    if (p1Coins > p2Coins) return { winner: "X", line: null };
+    if (p2Coins > p1Coins) return { winner: "O", line: null };
+    return { winner: "tie", line: null };
+  }
+
+  return { winner: null, line: null };
+};
+
+const selectAutoMove = (currentBoard: Board, symbol: Player): number => {
+  const findLineMove = (target: Player) => {
+    for (const combo of WINNING_COMBINATIONS) {
+      const values = combo.map(index => currentBoard[index]);
+      const targetCount = values.filter(value => value === target).length;
+      const emptyCount = values.filter(value => value === null).length;
+
+      if (targetCount === 2 && emptyCount === 1) {
+        return combo.find(index => currentBoard[index] === null) ?? null;
+      }
+    }
+
+    return null;
+  };
+
+  return (
+    findLineMove(symbol) ??
+    findLineMove(symbol === "X" ? "O" : "X") ??
+    (currentBoard[4] === null ? 4 : null) ??
+    [0, 2, 6, 8].find(index => currentBoard[index] === null) ??
+    currentBoard.findIndex(cell => cell === null)
+  );
+};
+
 type NotificationType = "bid_win" | "bid_lose" | "tie_coin_toss" | "round_win" | "round_lose" | "match_win" | "match_lose" | "opponent_turn" | "your_turn" | "coin_toss_animation" | "opponent_forfeit" | "bye_advancement";
 
 interface Notification {
@@ -129,6 +170,7 @@ export default function TournamentGame({
   const lastSeenBidResultRef = useRef<string | null>(null);
   const lastSeenRoundWinnerRef = useRef<string | null>(null);
   const byeCheckDoneRef = useRef(false);
+  const roundTransitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { toast } = useToast();
   const { isMuted, toggleMute, play } = useGameSounds();
   const { isMusicMuted, toggleMusic } = useBackgroundMusic();
@@ -264,9 +306,27 @@ export default function TournamentGame({
           table: 'tournament_players',
           filter: `tournament_id=eq.${tournamentId}`,
         },
-        () => {
+        (payload) => {
           if (!isMounted) return;
-          fetchData();
+
+          if (payload.eventType === 'INSERT' || payload.eventType === 'DELETE') {
+            fetchData();
+            return;
+          }
+
+          const updatedPlayer = payload.new as TournamentPlayer;
+          if (!updatedPlayer?.id) return;
+
+          setPlayers(prev => prev.map(player =>
+            player.id === updatedPlayer.id ? { ...player, ...updatedPlayer } : player
+          ));
+          setAllPlayers(prev => prev.map(player =>
+            player.id === updatedPlayer.id ? { ...player, ...updatedPlayer } : player
+          ));
+
+          if (updatedPlayer.id === currentPlayerId) {
+            setIsReady(updatedPlayer.is_ready);
+          }
         }
       )
       .subscribe();
@@ -300,6 +360,9 @@ export default function TournamentGame({
       clearInterval(pollInterval);
       supabase.removeChannel(playersChannel);
       supabase.removeChannel(matchChannel);
+      if (roundTransitionTimeoutRef.current) {
+        clearTimeout(roundTransitionTimeoutRef.current);
+      }
       // Cleanup coin toss timeout
       if (coinTossTimeoutRef.current) {
         clearTimeout(coinTossTimeoutRef.current);
@@ -348,24 +411,9 @@ export default function TournamentGame({
   // Ref for match-end detection (effect placed after handleMatchComplete definition)
   const hasHandledMatchEndRef = useRef(false);
 
-  // Server-synced timer using RAF — no drift, no skipped seconds
-  const handleTimerExpire = useCallback(() => {
-    if (!currentMatch || !matchInfo || currentMatch.match_winner || notification || isProcessing) return;
-    
-    if (isBiddingPhase && !hasSubmittedBidRef.current) {
-      afkActions.recordAutoAction();
-      handleBidSubmit(1, true);
-    } else if (!isBiddingPhase && isMyTurn && bidWinner === matchInfo?.mySymbol) {
-      afkActions.recordAutoAction();
-      autoPlayMove();
-    }
-  }, [currentMatch, matchInfo, isBiddingPhase, isMyTurn, bidWinner, notification, isProcessing]);
-
-  const timeLeft = useServerTimer(
-    currentMatch?.phase_deadline || null,
-    gameStarted && !currentMatch?.match_winner && !notification && !isProcessing,
-    handleTimerExpire,
-  );
+  useEffect(() => {
+    hasHandledMatchEndRef.current = false;
+  }, [currentMatch?.id]);
 
   // Reset bid submission flag when bidding phase changes
   useEffect(() => {
@@ -581,20 +629,63 @@ export default function TournamentGame({
     }
   }, [currentMatch?.winner, currentMatch?.current_round, currentMatch?.player1_score, currentMatch?.player2_score, matchInfo, gameStarted]);
 
-  const checkWinner = useCallback((currentBoard: Board, p1Coins: number, p2Coins: number): { winner: Player | "tie" | null; line: number[] | null } => {
-    for (const combo of WINNING_COMBINATIONS) {
-      const [a, b, c] = combo;
-      if (currentBoard[a] && currentBoard[a] === currentBoard[b] && currentBoard[a] === currentBoard[c]) {
-        return { winner: currentBoard[a], line: combo };
+  useEffect(() => {
+    if (roundTransitionTimeoutRef.current) {
+      clearTimeout(roundTransitionTimeoutRef.current);
+      roundTransitionTimeoutRef.current = null;
+    }
+
+    if (!currentMatch || !currentMatch.winner || currentMatch.match_winner || currentMatch.status !== 'playing' || !currentMatch.phase_deadline) {
+      return;
+    }
+
+    const advanceRound = async () => {
+      await supabase
+        .from('tournament_matches')
+        .update({
+          board: '---------',
+          current_turn: 'X',
+          winner: null,
+          winning_line: null,
+          is_bidding_phase: true,
+          bid_winner: null,
+          player1_coins: INITIAL_COINS,
+          player2_coins: INITIAL_COINS,
+          current_round: currentMatch.current_round + 1,
+          phase_deadline: new Date(Date.now() + PHASE_TIME * 1000).toISOString(),
+          player1_bid: null,
+          player2_bid: null,
+          last_bid_result: null,
+        })
+        .eq('id', currentMatch.id)
+        .eq('current_round', currentMatch.current_round)
+        .eq('status', 'playing')
+        .eq('winner', currentMatch.winner);
+
+      setNotification(null);
+      setIsProcessing(false);
+    };
+
+    const delay = Math.max(0, new Date(currentMatch.phase_deadline).getTime() - Date.now());
+
+    if (delay === 0) {
+      void advanceRound();
+      return;
+    }
+
+    roundTransitionTimeoutRef.current = setTimeout(() => {
+      void advanceRound();
+    }, delay);
+
+    return () => {
+      if (roundTransitionTimeoutRef.current) {
+        clearTimeout(roundTransitionTimeoutRef.current);
       }
-    }
-    if (currentBoard.every(cell => cell !== null)) {
-      // Board full - economic win
-      if (p1Coins > p2Coins) return { winner: "X", line: null };
-      if (p2Coins > p1Coins) return { winner: "O", line: null };
-      return { winner: "tie", line: null };
-    }
-    return { winner: null, line: null };
+    };
+  }, [currentMatch?.id, currentMatch?.winner, currentMatch?.match_winner, currentMatch?.status, currentMatch?.phase_deadline, currentMatch?.current_round]);
+
+  const checkWinner = useCallback((currentBoard: Board, p1Coins: number, p2Coins: number): { winner: Player | "tie" | null; line: number[] | null } => {
+    return evaluateBoardState(currentBoard, p1Coins, p2Coins);
   }, []);
 
   const getEmptyCells = (currentBoard: Board): number[] => {
@@ -604,15 +695,156 @@ export default function TournamentGame({
     }, []);
   };
 
+  const applyMoveUpdate = useCallback(async (matchSnapshot: TournamentMatch, index: number, moveSymbol: Player) => {
+    const snapshotBoard = boardStringToArray(matchSnapshot.board);
+    if (snapshotBoard[index] !== null || matchSnapshot.winner || matchSnapshot.match_winner) {
+      return null;
+    }
+
+    const newBoard = [...snapshotBoard];
+    newBoard[index] = moveSymbol;
+    const newBoardStr = boardArrayToString(newBoard);
+    const nextTurn = moveSymbol === "X" ? "O" : "X";
+    const result = evaluateBoardState(newBoard, matchSnapshot.player1_coins, matchSnapshot.player2_coins);
+    const p1Bankrupt = matchSnapshot.player1_coins < 1;
+    const p2Bankrupt = matchSnapshot.player2_coins < 1;
+
+    let roundWinner: Player | null = null;
+    if (result.winner) {
+      roundWinner = result.winner === "tie" ? null : result.winner;
+    } else if (p1Bankrupt) {
+      roundWinner = "O";
+    } else if (p2Bankrupt) {
+      roundWinner = "X";
+    }
+
+    const updateData: Record<string, unknown> = {
+      board: newBoardStr,
+      current_turn: nextTurn,
+    };
+
+    let newP1Score = matchSnapshot.player1_score;
+    let newP2Score = matchSnapshot.player2_score;
+    let matchWinnerStr: "player1" | "player2" | null = null;
+
+    if (roundWinner || result.winner === "tie") {
+      const p1Wins = roundWinner === "X";
+      newP1Score += p1Wins ? 1 : 0;
+      newP2Score += !p1Wins && roundWinner ? 1 : 0;
+
+      updateData.winner = result.winner || roundWinner;
+      updateData.winning_line = result.line ? JSON.stringify(result.line) : null;
+      updateData.player1_score = newP1Score;
+      updateData.player2_score = newP2Score;
+
+      if (newP1Score >= 2 || newP2Score >= 2) {
+        matchWinnerStr = newP1Score >= 2 ? "player1" : "player2";
+        updateData.match_winner = matchWinnerStr;
+        updateData.status = "completed";
+        updateData.completed_at = new Date().toISOString();
+      } else {
+        updateData.phase_deadline = new Date(Date.now() + ROUND_RESULT_DELAY).toISOString();
+      }
+    } else {
+      updateData.is_bidding_phase = true;
+      updateData.bid_winner = null;
+      updateData.phase_deadline = new Date(Date.now() + PHASE_TIME * 1000).toISOString();
+      updateData.player1_bid = null;
+      updateData.player2_bid = null;
+    }
+
+    const { data: updatedMatch, error } = await supabase
+      .from('tournament_matches')
+      .update(updateData)
+      .eq('id', matchSnapshot.id)
+      .eq('board', matchSnapshot.board)
+      .eq('current_turn', moveSymbol)
+      .eq('is_bidding_phase', false)
+      .is('winner', null)
+      .is('match_winner', null)
+      .select('*')
+      .maybeSingle();
+
+    if (error || !updatedMatch) {
+      return null;
+    }
+
+    return {
+      result,
+      roundWinner,
+      p1Bankrupt,
+      p2Bankrupt,
+      newP1Score,
+      newP2Score,
+      matchWinnerStr,
+      updatedMatch: updatedMatch as unknown as TournamentMatch,
+    };
+  }, []);
+
   const autoPlayMove = useCallback(async () => {
     if (!currentMatch || !matchInfo) return;
 
-    const emptyCells = getEmptyCells(board);
-    if (emptyCells.length === 0) return;
+    const moveIndex = selectAutoMove(board, matchInfo.mySymbol);
+    if (moveIndex < 0) return;
 
-    const randomCell = emptyCells[Math.floor(Math.random() * emptyCells.length)];
-    await makeMove(randomCell);
+    await makeMove(moveIndex);
   }, [board, currentMatch, matchInfo]);
+
+  // Server-synced timer using RAF — resolves from authoritative match state
+  const handleTimerExpire = useCallback(async () => {
+    if (!currentMatch || !matchInfo || currentMatch.match_winner || currentMatch.winner) return;
+
+    if (currentMatch.is_bidding_phase) {
+      const updateData: Record<string, number> = {};
+      let hasMissingBid = false;
+      let localTimedOut = false;
+
+      if (currentMatch.player1_bid === null) {
+        updateData.player1_bid = 1;
+        hasMissingBid = true;
+        if (matchInfo.isPlayer1) localTimedOut = true;
+      }
+
+      if (currentMatch.player2_bid === null) {
+        updateData.player2_bid = 1;
+        hasMissingBid = true;
+        if (!matchInfo.isPlayer1) localTimedOut = true;
+      }
+
+      if (!hasMissingBid || !currentMatch.phase_deadline) return;
+
+      if (localTimedOut) {
+        afkActions.recordAutoAction();
+      }
+
+      await supabase
+        .from('tournament_matches')
+        .update(updateData)
+        .eq('id', currentMatch.id)
+        .eq('is_bidding_phase', true)
+        .eq('phase_deadline', currentMatch.phase_deadline);
+
+      return;
+    }
+
+    const turnSymbol = currentMatch.current_turn as Player;
+    const currentBoard = boardStringToArray(currentMatch.board);
+    const moveIndex = selectAutoMove(currentBoard, turnSymbol);
+
+    if (moveIndex < 0 || currentBoard[moveIndex] !== null) return;
+
+    if (matchInfo.mySymbol === turnSymbol) {
+      afkActions.recordAutoAction();
+    }
+
+    await applyMoveUpdate(currentMatch, moveIndex, turnSymbol);
+  }, [currentMatch, matchInfo, afkActions, applyMoveUpdate]);
+
+  const timeLeft = useServerTimer(
+    currentMatch?.phase_deadline || null,
+    gameStarted && !currentMatch?.match_winner && !notification && !isProcessing,
+    handleTimerExpire,
+  );
 
   const handleBidSubmit = useCallback(async (bidAmount: number, isAuto = false) => {
     if (!currentMatch || !matchInfo || hasSubmittedBidRef.current) return;
@@ -640,16 +872,12 @@ export default function TournamentGame({
 
   // Watchdog hook for timeout failsafes - placed after handlers are defined
   const handleForceBid = useCallback(() => {
-    if (!hasSubmittedBidRef.current && matchInfo) {
-      afkActions.recordAutoAction();
-      handleBidSubmit(1, true);
-    }
-  }, [matchInfo, handleBidSubmit]);
+    void handleTimerExpire();
+  }, [handleTimerExpire]);
   
   const handleForceMove = useCallback(() => {
-    afkActions.recordAutoAction();
-    autoPlayMove();
-  }, [autoPlayMove]);
+    void handleTimerExpire();
+  }, [handleTimerExpire]);
   
   const handleForceRefresh = useCallback(() => {
     fetchData();
@@ -893,62 +1121,25 @@ export default function TournamentGame({
     afkActions.recordManualAction();
     play("markPlace");
 
-    const newBoard = [...board];
-    newBoard[index] = matchInfo.mySymbol;
-    const newBoardStr = boardArrayToString(newBoard);
-    const nextTurn = currentTurn === "X" ? "O" : "X";
+    const moveResult = await applyMoveUpdate(currentMatch, index, matchInfo.mySymbol);
 
-    const result = checkWinner(newBoard, currentMatch.player1_coins, currentMatch.player2_coins);
-
-    // Check for bankruptcy before next bidding phase
-    const p1Bankrupt = currentMatch.player1_coins < 1;
-    const p2Bankrupt = currentMatch.player2_coins < 1;
-
-    let roundWinner: Player | null = null;
-    if (result.winner) {
-      roundWinner = result.winner === "tie" ? null : result.winner;
-    } else if (p1Bankrupt) {
-      roundWinner = "O";
-    } else if (p2Bankrupt) {
-      roundWinner = "X";
+    if (!moveResult) {
+      setIsProcessing(false);
+      return;
     }
 
+    const { result, roundWinner, p1Bankrupt, p2Bankrupt, newP1Score, newP2Score, matchWinnerStr } = moveResult;
+
     if (roundWinner || result.winner === "tie") {
-      // Round ended
-      const p1Wins = roundWinner === "X";
-      const newP1Score = currentMatch.player1_score + (p1Wins ? 1 : 0);
-      const newP2Score = currentMatch.player2_score + (!p1Wins && roundWinner ? 1 : 0);
-
-      const updateData: Record<string, unknown> = {
-        board: newBoardStr,
-        current_turn: nextTurn,
-        winner: result.winner || roundWinner,
-        winning_line: result.line ? JSON.stringify(result.line) : null,
-        player1_score: newP1Score,
-        player2_score: newP2Score,
-      };
-
-      // Check if match is over (Best of 3)
-      if (newP1Score >= 2 || newP2Score >= 2) {
-        updateData.match_winner = newP1Score >= 2 ? "player1" : "player2";
-        updateData.status = "completed";
-        updateData.completed_at = new Date().toISOString();
-      }
-
-      await supabase
-        .from('tournament_matches')
-        .update(updateData)
-        .eq('id', currentMatch.id);
-
       const didWinRound = roundWinner === matchInfo.mySymbol;
+      const isTiedRound = result.winner === "tie";
 
-      // Determine win reason
       let winReason = "";
       if (result.line) {
         winReason = "Won by completing three marks";
       } else if (p1Bankrupt || p2Bankrupt) {
         winReason = "Won by bankrupting opponent";
-      } else if (result.winner === "tie") {
+      } else if (isTiedRound) {
         winReason = "Round ended in a tie";
       } else {
         winReason = "Won by economic advantage";
@@ -956,71 +1147,31 @@ export default function TournamentGame({
 
       setNotification({
         type: didWinRound ? "round_win" : "round_lose",
-        message: didWinRound ? "🎉 You Won This Round!" : `${matchInfo.opponent.player_name} Won This Round`,
+        message: isTiedRound
+          ? "🤝 Round Tied!"
+          : (didWinRound ? "🎉 You Won This Round!" : `${matchInfo.opponent.player_name} Won This Round`),
         subMessage: `${winReason} • Score: ${matchInfo.isPlayer1 ? newP1Score : newP2Score} - ${matchInfo.isPlayer1 ? newP2Score : newP1Score}`,
       });
 
-      play(didWinRound ? "win" : "lose");
+      if (!isTiedRound) {
+        play(didWinRound ? "win" : "lose");
+      }
 
-      // Check if match is over - immediate transition, no artificial delay
-      if (newP1Score >= 2 || newP2Score >= 2) {
-        const matchWinnerStr = newP1Score >= 2 ? "player1" : "player2";
+      if (matchWinnerStr) {
         const didWinMatch = (matchWinnerStr === "player1" && matchInfo.isPlayer1) || (matchWinnerStr === "player2" && !matchInfo.isPlayer1);
 
         if (didWinMatch) play("tournamentVictory");
 
-        // Immediately proceed to match completion and leaderboard
         hasHandledMatchEndRef.current = true;
         setNotification(null);
         setIsProcessing(false);
         await handleMatchComplete(matchWinnerStr);
-      } else {
-        // Start next round after brief round-result display
-        setTimeout(async () => {
-          setNotification(null);
-          play("roundStart");
-          const deadline = new Date(Date.now() + PHASE_TIME * 1000).toISOString();
-          await supabase
-            .from('tournament_matches')
-            .update({
-              board: "---------",
-              current_turn: "X",
-              winner: null,
-              winning_line: null,
-              is_bidding_phase: true,
-              bid_winner: null,
-              player1_coins: INITIAL_COINS,
-              player2_coins: INITIAL_COINS,
-              current_round: currentMatch.current_round + 1,
-              phase_deadline: deadline,
-              player1_bid: null,
-              player2_bid: null,
-              last_bid_result: null,
-            })
-            .eq('id', currentMatch.id);
-          setIsProcessing(false);
-        }, ROUND_RESULT_DELAY);
+        return;
       }
-    } else {
-      // Continue playing - start new bidding phase
-      const deadline = new Date(Date.now() + PHASE_TIME * 1000).toISOString();
-
-      await supabase
-        .from('tournament_matches')
-        .update({
-          board: newBoardStr,
-          current_turn: nextTurn,
-          is_bidding_phase: true,
-          bid_winner: null,
-          phase_deadline: deadline,
-          player1_bid: null,
-          player2_bid: null,
-        })
-        .eq('id', currentMatch.id);
-
-      setIsProcessing(false);
     }
-  }, [gameStarted, isMyTurn, board, winner, currentMatch, matchInfo, isBiddingPhase, bidWinner, currentTurn, checkWinner]);
+
+    setIsProcessing(false);
+  }, [gameStarted, isMyTurn, board, winner, currentMatch, matchInfo, isBiddingPhase, bidWinner, afkActions, applyMoveUpdate, handleMatchComplete, play]);
 
   const handleMatchComplete = useCallback(async (matchWinnerStr: "player1" | "player2") => {
     if (!currentMatch || !matchInfo) return;
