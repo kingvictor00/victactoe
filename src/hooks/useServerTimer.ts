@@ -16,6 +16,11 @@ export function useServerTimer(
   const rafRef = useRef(0);
   const expiredRef = useRef(false);
   const lastSecRef = useRef(-1);
+  const onExpireRef = useRef(onExpire);
+
+  useEffect(() => {
+    onExpireRef.current = onExpire;
+  }, [onExpire]);
 
   // Reset expired flag when deadline changes
   useEffect(() => {
@@ -33,7 +38,8 @@ export function useServerTimer(
     const deadlineMs = new Date(deadline).getTime();
 
     const tick = () => {
-      const remaining = Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1000));
+      const remainingMs = deadlineMs - Date.now();
+      const remaining = Math.max(0, Math.ceil(remainingMs / 1000));
 
       // Only update state when the displayed second changes
       if (remaining !== lastSecRef.current) {
@@ -44,7 +50,7 @@ export function useServerTimer(
       if (remaining <= 0) {
         if (!expiredRef.current) {
           expiredRef.current = true;
-          onExpire?.();
+          onExpireRef.current?.();
         }
         return; // stop RAF loop
       }
@@ -52,10 +58,10 @@ export function useServerTimer(
       rafRef.current = requestAnimationFrame(tick);
     };
 
-    rafRef.current = requestAnimationFrame(tick);
+    tick();
 
     return () => cancelAnimationFrame(rafRef.current);
-  }, [deadline, enabled, onExpire]);
+  }, [deadline, enabled]);
 
   return secondsLeft;
 }
@@ -75,6 +81,11 @@ export function useLocalTimer(
   const startRef = useRef(0);
   const expiredRef = useRef(false);
   const lastSecRef = useRef(-1);
+  const onExpireRef = useRef(onExpire);
+
+  useEffect(() => {
+    onExpireRef.current = onExpire;
+  }, [onExpire]);
 
   // Reset on key change
   useEffect(() => {
@@ -105,7 +116,7 @@ export function useLocalTimer(
       if (remaining <= 0) {
         if (!expiredRef.current) {
           expiredRef.current = true;
-          onExpire?.();
+          onExpireRef.current?.();
         }
         return;
       }
@@ -113,10 +124,10 @@ export function useLocalTimer(
       rafRef.current = requestAnimationFrame(tick);
     };
 
-    rafRef.current = requestAnimationFrame(tick);
+    tick();
 
     return () => cancelAnimationFrame(rafRef.current);
-  }, [enabled, durationSec, onExpire]);
+  }, [enabled, durationSec]);
 
   return secondsLeft;
 }
