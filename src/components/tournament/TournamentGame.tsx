@@ -837,7 +837,7 @@ export default function TournamentGame({
     if (moveIndex < 0 || currentBoard[moveIndex] !== null) return;
 
     if (matchInfo.mySymbol === turnSymbol) {
-      afkActions.recordAutoAction();
+      afkActionsRef.current.recordAutoAction();
     }
 
     await applyMoveUpdate(currentMatch, moveIndex, turnSymbol);
