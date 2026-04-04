@@ -1168,7 +1168,7 @@ export default function TournamentGame({
         hasHandledMatchEndRef.current = true;
         setNotification(null);
         setIsProcessing(false);
-        await handleMatchComplete(matchWinnerStr);
+        await handleMatchCompleteRef.current(matchWinnerStr);
         return;
       }
     }
