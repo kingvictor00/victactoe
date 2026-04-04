@@ -1328,9 +1328,9 @@ export default function TournamentGame({
       // Immediately transition to leaderboard for ALL players
       setNotification(null);
       setIsProcessing(false);
-      handleMatchComplete(currentMatch.match_winner as "player1" | "player2");
+      handleMatchCompleteRef.current(currentMatch.match_winner as "player1" | "player2");
     }
-  }, [currentMatch?.match_winner, currentMatch?.status, matchInfo, currentPlayerId, showTournamentWinner, handleMatchComplete]);
+  }, [currentMatch?.match_winner, currentMatch?.status, matchInfo, currentPlayerId, showTournamentWinner]);
 
   const handleReady = async () => {
     if (isReady) return;
