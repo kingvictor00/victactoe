@@ -171,6 +171,9 @@ export default function TournamentGame({
   const lastSeenRoundWinnerRef = useRef<string | null>(null);
   const byeCheckDoneRef = useRef(false);
   const roundTransitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Refs to break circular initialization dependencies (TDZ)
+  const afkActionsRef = useRef<{ recordAutoAction: () => void; recordManualAction: () => void }>({ recordAutoAction: () => {}, recordManualAction: () => {} });
+  const handleMatchCompleteRef = useRef<(w: "player1" | "player2") => Promise<void>>(async () => {});
   const { toast } = useToast();
   const { isMuted, toggleMute, play } = useGameSounds();
   const { isMusicMuted, toggleMusic } = useBackgroundMusic();
