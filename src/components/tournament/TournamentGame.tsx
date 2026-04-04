@@ -1121,7 +1121,7 @@ export default function TournamentGame({
     }
 
     setIsProcessing(true);
-    afkActions.recordManualAction();
+    afkActionsRef.current.recordManualAction();
     play("markPlace");
 
     const moveResult = await applyMoveUpdate(currentMatch, index, matchInfo.mySymbol);
