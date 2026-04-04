@@ -923,6 +923,9 @@ export default function TournamentGame({
     handleAfkForfeit,
   );
 
+  // Keep refs in sync so callbacks defined earlier can use them
+  afkActionsRef.current = afkActions;
+
   useTournamentWatchdog(
     {
       matchId: currentMatch?.id || null,
