@@ -841,7 +841,7 @@ export default function TournamentGame({
     }
 
     await applyMoveUpdate(currentMatch, moveIndex, turnSymbol);
-  }, [currentMatch, matchInfo, afkActions, applyMoveUpdate]);
+  }, [currentMatch, matchInfo, applyMoveUpdate]);
 
   const timeLeft = useServerTimer(
     currentMatch?.phase_deadline || null,
