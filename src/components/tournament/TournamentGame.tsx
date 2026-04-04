@@ -1378,10 +1378,13 @@ export default function TournamentGame({
         });
       }
       
-      // Immediately transition to leaderboard for ALL players
-      setNotification(null);
+      // Show the final round result for a moment before transitioning
       setIsProcessing(false);
-      handleMatchCompleteRef.current(currentMatch.match_winner as "player1" | "player2");
+      const matchWinner = currentMatch.match_winner as "player1" | "player2";
+      setTimeout(() => {
+        setNotification(null);
+        handleMatchCompleteRef.current(matchWinner);
+      }, ROUND_RESULT_DELAY);
     }
   }, [currentMatch?.match_winner, currentMatch?.status, matchInfo, currentPlayerId, showTournamentWinner]);
 
