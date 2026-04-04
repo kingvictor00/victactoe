@@ -171,6 +171,9 @@ export default function TournamentGame({
   const lastSeenRoundWinnerRef = useRef<string | null>(null);
   const byeCheckDoneRef = useRef(false);
   const roundTransitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Refs to break circular initialization dependencies (TDZ)
+  const afkActionsRef = useRef<{ recordAutoAction: () => void; recordManualAction: () => void }>({ recordAutoAction: () => {}, recordManualAction: () => {} });
+  const handleMatchCompleteRef = useRef<(w: "player1" | "player2") => Promise<void>>(async () => {});
   const { toast } = useToast();
   const { isMuted, toggleMute, play } = useGameSounds();
   const { isMusicMuted, toggleMusic } = useBackgroundMusic();
@@ -814,7 +817,7 @@ export default function TournamentGame({
       if (!hasMissingBid || !currentMatch.phase_deadline) return;
 
       if (localTimedOut) {
-        afkActions.recordAutoAction();
+        afkActionsRef.current.recordAutoAction();
       }
 
       await supabase
@@ -834,11 +837,11 @@ export default function TournamentGame({
     if (moveIndex < 0 || currentBoard[moveIndex] !== null) return;
 
     if (matchInfo.mySymbol === turnSymbol) {
-      afkActions.recordAutoAction();
+      afkActionsRef.current.recordAutoAction();
     }
 
     await applyMoveUpdate(currentMatch, moveIndex, turnSymbol);
-  }, [currentMatch, matchInfo, afkActions, applyMoveUpdate]);
+  }, [currentMatch, matchInfo, applyMoveUpdate]);
 
   const timeLeft = useServerTimer(
     currentMatch?.phase_deadline || null,
@@ -919,6 +922,9 @@ export default function TournamentGame({
     },
     handleAfkForfeit,
   );
+
+  // Keep refs in sync so callbacks defined earlier can use them
+  afkActionsRef.current = afkActions;
 
   useTournamentWatchdog(
     {
@@ -1118,7 +1124,7 @@ export default function TournamentGame({
     }
 
     setIsProcessing(true);
-    afkActions.recordManualAction();
+    afkActionsRef.current.recordManualAction();
     play("markPlace");
 
     const moveResult = await applyMoveUpdate(currentMatch, index, matchInfo.mySymbol);
@@ -1165,13 +1171,13 @@ export default function TournamentGame({
         hasHandledMatchEndRef.current = true;
         setNotification(null);
         setIsProcessing(false);
-        await handleMatchComplete(matchWinnerStr);
+        await handleMatchCompleteRef.current(matchWinnerStr);
         return;
       }
     }
 
     setIsProcessing(false);
-  }, [gameStarted, isMyTurn, board, winner, currentMatch, matchInfo, isBiddingPhase, bidWinner, afkActions, applyMoveUpdate, handleMatchComplete, play]);
+  }, [gameStarted, isMyTurn, board, winner, currentMatch, matchInfo, isBiddingPhase, bidWinner, applyMoveUpdate, play]);
 
   const handleMatchComplete = useCallback(async (matchWinnerStr: "player1" | "player2") => {
     if (!currentMatch || !matchInfo) return;
@@ -1294,6 +1300,9 @@ export default function TournamentGame({
     }
   }, [currentMatch, matchInfo, currentPlayerId, allPlayers, totalPlayerCount, tournamentId, fetchData]);
 
+  // Keep ref in sync
+  handleMatchCompleteRef.current = handleMatchComplete;
+
   // Detect match completion from remote updates (forfeit, or opponent made winning move)
   // This ensures ALL players transition to leaderboard when match ends
   useEffect(() => {
@@ -1319,9 +1328,9 @@ export default function TournamentGame({
       // Immediately transition to leaderboard for ALL players
       setNotification(null);
       setIsProcessing(false);
-      handleMatchComplete(currentMatch.match_winner as "player1" | "player2");
+      handleMatchCompleteRef.current(currentMatch.match_winner as "player1" | "player2");
     }
-  }, [currentMatch?.match_winner, currentMatch?.status, matchInfo, currentPlayerId, showTournamentWinner, handleMatchComplete]);
+  }, [currentMatch?.match_winner, currentMatch?.status, matchInfo, currentPlayerId, showTournamentWinner]);
 
   const handleReady = async () => {
     if (isReady) return;
