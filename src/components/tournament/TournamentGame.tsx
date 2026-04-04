@@ -356,7 +356,7 @@ export default function TournamentGame({
 
     const pollInterval = setInterval(() => {
       if (isMounted) fetchData();
-    }, 2000);
+    }, 1500);
 
     return () => {
       isMounted = false;
@@ -686,6 +686,59 @@ export default function TournamentGame({
       }
     };
   }, [currentMatch?.id, currentMatch?.winner, currentMatch?.match_winner, currentMatch?.status, currentMatch?.phase_deadline, currentMatch?.current_round]);
+
+  useEffect(() => {
+    if (!currentMatch) return;
+
+    const shouldClearTransientUi =
+      currentMatch.status === "playing" &&
+      currentMatch.match_winner === null &&
+      currentMatch.winner === null &&
+      currentMatch.is_bidding_phase &&
+      currentMatch.bid_winner === null &&
+      currentMatch.player1_bid === null &&
+      currentMatch.player2_bid === null;
+
+    const shouldReleaseProcessingState =
+      currentMatch.status === "completed" ||
+      (
+        currentMatch.status === "playing" &&
+        currentMatch.match_winner === null &&
+        (
+          shouldClearTransientUi ||
+          (!currentMatch.is_bidding_phase && currentMatch.bid_winner !== null)
+        )
+      );
+
+    if (coinTossTimeoutRef.current && (shouldClearTransientUi || currentMatch.status === "completed")) {
+      clearTimeout(coinTossTimeoutRef.current);
+      coinTossTimeoutRef.current = null;
+    }
+
+    if (shouldReleaseProcessingState) {
+      setIsProcessing(false);
+      setIsCoinFlipping(false);
+    }
+
+    if (
+      shouldClearTransientUi &&
+      notification &&
+      ["bid_win", "bid_lose", "tie_coin_toss", "round_win", "round_lose", "coin_toss_animation", "opponent_turn", "your_turn"].includes(notification.type)
+    ) {
+      setNotification(null);
+    }
+  }, [
+    currentMatch?.id,
+    currentMatch?.status,
+    currentMatch?.match_winner,
+    currentMatch?.winner,
+    currentMatch?.current_round,
+    currentMatch?.is_bidding_phase,
+    currentMatch?.bid_winner,
+    currentMatch?.player1_bid,
+    currentMatch?.player2_bid,
+    notification,
+  ]);
 
   const checkWinner = useCallback((currentBoard: Board, p1Coins: number, p2Coins: number): { winner: Player | "tie" | null; line: number[] | null } => {
     return evaluateBoardState(currentBoard, p1Coins, p2Coins);
@@ -1252,11 +1305,9 @@ export default function TournamentGame({
     } else {
       // More rounds to go
       // Player1 of this match is responsible for creating next round (idempotent)
-      if (matchInfo.isPlayer1) {
-        const created = await createNextRoundMatches(tournamentId, currentRoundNumber);
-        if (created) {
-          console.log(`[Progression] Created round ${currentRoundNumber + 1} matches`);
-        }
+      const created = await createNextRoundMatches(tournamentId, currentRoundNumber);
+      if (created) {
+        console.log(`[Progression] Created round ${currentRoundNumber + 1} matches`);
       }
 
       if (!didWin) {
