@@ -1222,8 +1222,10 @@ export default function TournamentGame({
         if (didWinMatch) play("tournamentVictory");
 
         hasHandledMatchEndRef.current = true;
-        setNotification(null);
+        // Keep the round result notification visible for a moment before transitioning
         setIsProcessing(false);
+        await new Promise(resolve => setTimeout(resolve, ROUND_RESULT_DELAY));
+        setNotification(null);
         await handleMatchCompleteRef.current(matchWinnerStr);
         return;
       }
