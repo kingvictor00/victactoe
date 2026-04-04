@@ -1300,6 +1300,9 @@ export default function TournamentGame({
     }
   }, [currentMatch, matchInfo, currentPlayerId, allPlayers, totalPlayerCount, tournamentId, fetchData]);
 
+  // Keep ref in sync
+  handleMatchCompleteRef.current = handleMatchComplete;
+
   // Detect match completion from remote updates (forfeit, or opponent made winning move)
   // This ensures ALL players transition to leaderboard when match ends
   useEffect(() => {
