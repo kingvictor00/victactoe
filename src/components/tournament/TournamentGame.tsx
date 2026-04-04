@@ -1174,7 +1174,7 @@ export default function TournamentGame({
     }
 
     setIsProcessing(false);
-  }, [gameStarted, isMyTurn, board, winner, currentMatch, matchInfo, isBiddingPhase, bidWinner, afkActions, applyMoveUpdate, handleMatchComplete, play]);
+  }, [gameStarted, isMyTurn, board, winner, currentMatch, matchInfo, isBiddingPhase, bidWinner, applyMoveUpdate, play]);
 
   const handleMatchComplete = useCallback(async (matchWinnerStr: "player1" | "player2") => {
     if (!currentMatch || !matchInfo) return;
