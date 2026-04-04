@@ -817,7 +817,7 @@ export default function TournamentGame({
       if (!hasMissingBid || !currentMatch.phase_deadline) return;
 
       if (localTimedOut) {
-        afkActions.recordAutoAction();
+        afkActionsRef.current.recordAutoAction();
       }
 
       await supabase
