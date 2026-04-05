@@ -14,13 +14,12 @@ import { useBackgroundMusic } from "@/hooks/useBackgroundMusic";
 import { useAfkDetection } from "@/hooks/useAfkDetection";
 import { useHeartbeat } from "@/hooks/useHeartbeat";
 import { useServerTimer } from "@/hooks/useServerTimer";
-import { getDeviceId, saveMatchSession, clearMatchSession } from "@/hooks/usePlayerIdentity";
+import { clearMatchSession } from "@/hooks/usePlayerIdentity";
 import CoinFlipAnimation from "@/components/ui/CoinFlipAnimation";
 import { 
-  createNextRoundMatches, 
   getRemainingPlayers,
-  generateFairCoinToss,
 } from "@/lib/tournament-utils";
+import { invokeTournamentAction, type TournamentActionPayload, type TournamentActionResponse } from "@/lib/tournament-actions";
 
 type Player = "X" | "O";
 type CellValue = Player | null;
@@ -143,6 +142,8 @@ interface Notification {
   message: string;
   subMessage?: string;
 }
+
+type MatchActionResponse = TournamentActionResponse<TournamentMatch>;
 
 export default function TournamentGame({
   tournamentId,
@@ -290,6 +291,23 @@ export default function TournamentGame({
 
     setIsLoading(false);
   }, [tournamentId, currentPlayerId]);
+
+  const runMatchAction = useCallback(async (
+    matchId: string,
+    payload: Omit<TournamentActionPayload, "playerId" | "matchId">,
+  ) => {
+    const response = await invokeTournamentAction<TournamentMatch>({
+      ...payload,
+      playerId: currentPlayerId,
+      matchId,
+    });
+
+    if (response.match) {
+      setCurrentMatch(response.match as TournamentMatch);
+    }
+
+    return response as MatchActionResponse;
+  }, [currentPlayerId]);
 
   // Initial fetch and subscriptions
   useEffect(() => {
@@ -468,9 +486,9 @@ export default function TournamentGame({
       return;
     }
     
-    // P2: If bidding phase ended (P1 resolved) and we missed the coin toss animation,
-    // still process the result to stay in sync
-    if (!matchInfo.isPlayer1 && !currentMatch.is_bidding_phase && currentMatch.last_bid_result && currentMatch.bid_winner) {
+    // Any client: if bidding phase already ended and a fresh authoritative result exists,
+    // show it once even if this client did not trigger the resolve action.
+    if (!currentMatch.is_bidding_phase && currentMatch.last_bid_result && currentMatch.bid_winner) {
       const resultKey = `${currentMatch.id}-${currentMatch.current_round}-${JSON.stringify(currentMatch.last_bid_result)}`;
       if (resultKey !== lastSeenBidResultRef.current && !isProcessing && !notification) {
         lastSeenBidResultRef.current = resultKey;
@@ -499,6 +517,7 @@ export default function TournamentGame({
         
         setTimeout(() => {
           setNotification(null);
+          setIsProcessing(false);
           play("turnChange");
         }, BID_RESULT_DELAY);
       }
@@ -643,30 +662,15 @@ export default function TournamentGame({
     }
 
     const advanceRound = async () => {
-      await supabase
-        .from('tournament_matches')
-        .update({
-          board: '---------',
-          current_turn: 'X',
-          winner: null,
-          winning_line: null,
-          is_bidding_phase: true,
-          bid_winner: null,
-          player1_coins: INITIAL_COINS,
-          player2_coins: INITIAL_COINS,
-          current_round: currentMatch.current_round + 1,
-          phase_deadline: new Date(Date.now() + PHASE_TIME * 1000).toISOString(),
-          player1_bid: null,
-          player2_bid: null,
-          last_bid_result: null,
-        })
-        .eq('id', currentMatch.id)
-        .eq('current_round', currentMatch.current_round)
-        .eq('status', 'playing')
-        .eq('winner', currentMatch.winner);
-
-      setNotification(null);
-      setIsProcessing(false);
+      try {
+        await runMatchAction(currentMatch.id, { action: "advance_round" });
+      } catch (error) {
+        console.error("Failed to advance round:", error);
+        fetchData();
+      } finally {
+        setNotification(null);
+        setIsProcessing(false);
+      }
     };
 
     const delay = Math.max(0, new Date(currentMatch.phase_deadline).getTime() - Date.now());
@@ -685,7 +689,7 @@ export default function TournamentGame({
         clearTimeout(roundTransitionTimeoutRef.current);
       }
     };
-  }, [currentMatch?.id, currentMatch?.winner, currentMatch?.match_winner, currentMatch?.status, currentMatch?.phase_deadline, currentMatch?.current_round]);
+  }, [currentMatch?.id, currentMatch?.winner, currentMatch?.match_winner, currentMatch?.status, currentMatch?.phase_deadline, currentMatch?.current_round, runMatchAction, fetchData]);
 
   useEffect(() => {
     if (!currentMatch) return;
@@ -751,91 +755,31 @@ export default function TournamentGame({
     }, []);
   };
 
-  const applyMoveUpdate = useCallback(async (matchSnapshot: TournamentMatch, index: number, moveSymbol: Player) => {
+  const applyMoveUpdate = useCallback(async (matchSnapshot: TournamentMatch, index: number, _moveSymbol: Player) => {
     const snapshotBoard = boardStringToArray(matchSnapshot.board);
     if (snapshotBoard[index] !== null || matchSnapshot.winner || matchSnapshot.match_winner) {
       return null;
     }
 
-    const newBoard = [...snapshotBoard];
-    newBoard[index] = moveSymbol;
-    const newBoardStr = boardArrayToString(newBoard);
-    const nextTurn = moveSymbol === "X" ? "O" : "X";
-    const result = evaluateBoardState(newBoard, matchSnapshot.player1_coins, matchSnapshot.player2_coins);
-    const p1Bankrupt = matchSnapshot.player1_coins < 1;
-    const p2Bankrupt = matchSnapshot.player2_coins < 1;
+    try {
+      const response = await runMatchAction(matchSnapshot.id, {
+        action: "make_move",
+        moveIndex: index,
+      });
 
-    let roundWinner: Player | null = null;
-    if (result.winner) {
-      roundWinner = result.winner === "tie" ? null : result.winner;
-    } else if (p1Bankrupt) {
-      roundWinner = "O";
-    } else if (p2Bankrupt) {
-      roundWinner = "X";
-    }
-
-    const updateData: Record<string, unknown> = {
-      board: newBoardStr,
-      current_turn: nextTurn,
-    };
-
-    let newP1Score = matchSnapshot.player1_score;
-    let newP2Score = matchSnapshot.player2_score;
-    let matchWinnerStr: "player1" | "player2" | null = null;
-
-    if (roundWinner || result.winner === "tie") {
-      const p1Wins = roundWinner === "X";
-      newP1Score += p1Wins ? 1 : 0;
-      newP2Score += !p1Wins && roundWinner ? 1 : 0;
-
-      updateData.winner = result.winner || roundWinner;
-      updateData.winning_line = result.line ? JSON.stringify(result.line) : null;
-      updateData.player1_score = newP1Score;
-      updateData.player2_score = newP2Score;
-
-      if (newP1Score >= 2 || newP2Score >= 2) {
-        matchWinnerStr = newP1Score >= 2 ? "player1" : "player2";
-        updateData.match_winner = matchWinnerStr;
-        updateData.status = "completed";
-        updateData.completed_at = new Date().toISOString();
-      } else {
-        updateData.phase_deadline = new Date(Date.now() + ROUND_RESULT_DELAY).toISOString();
+      if (!response.match || !response.moveOutcome) {
+        return null;
       }
-    } else {
-      updateData.is_bidding_phase = true;
-      updateData.bid_winner = null;
-      updateData.phase_deadline = new Date(Date.now() + PHASE_TIME * 1000).toISOString();
-      updateData.player1_bid = null;
-      updateData.player2_bid = null;
-    }
 
-    const { data: updatedMatch, error } = await supabase
-      .from('tournament_matches')
-      .update(updateData)
-      .eq('id', matchSnapshot.id)
-      .eq('board', matchSnapshot.board)
-      .eq('current_turn', moveSymbol)
-      .eq('is_bidding_phase', false)
-      .is('winner', null)
-      .is('match_winner', null)
-      .select('*')
-      .maybeSingle();
-
-    if (error || !updatedMatch) {
+      return {
+        ...response.moveOutcome,
+        updatedMatch: response.match,
+      };
+    } catch (error) {
+      console.error("Failed to apply move:", error);
       return null;
     }
-
-    return {
-      result,
-      roundWinner,
-      p1Bankrupt,
-      p2Bankrupt,
-      newP1Score,
-      newP2Score,
-      matchWinnerStr,
-      updatedMatch: updatedMatch as unknown as TournamentMatch,
-    };
-  }, []);
+  }, [runMatchAction]);
 
   const autoPlayMove = useCallback(async () => {
     if (!currentMatch || !matchInfo) return;
@@ -851,50 +795,48 @@ export default function TournamentGame({
     if (!currentMatch || !matchInfo || currentMatch.match_winner || currentMatch.winner) return;
 
     if (currentMatch.is_bidding_phase) {
-      const updateData: Record<string, number> = {};
-      let hasMissingBid = false;
       let localTimedOut = false;
 
       if (currentMatch.player1_bid === null) {
-        updateData.player1_bid = 1;
-        hasMissingBid = true;
         if (matchInfo.isPlayer1) localTimedOut = true;
       }
 
       if (currentMatch.player2_bid === null) {
-        updateData.player2_bid = 1;
-        hasMissingBid = true;
         if (!matchInfo.isPlayer1) localTimedOut = true;
       }
 
-      if (!hasMissingBid || !currentMatch.phase_deadline) return;
+      if (
+        currentMatch.player1_bid !== null &&
+        currentMatch.player2_bid !== null
+      ) {
+        return;
+      }
 
       if (localTimedOut) {
         afkActionsRef.current.recordAutoAction();
       }
 
-      await supabase
-        .from('tournament_matches')
-        .update(updateData)
-        .eq('id', currentMatch.id)
-        .eq('is_bidding_phase', true)
-        .eq('phase_deadline', currentMatch.phase_deadline);
+      try {
+        await runMatchAction(currentMatch.id, { action: "expire_phase" });
+      } catch (error) {
+        console.error("Failed to expire bidding phase:", error);
+        fetchData();
+      }
 
       return;
     }
 
-    const turnSymbol = currentMatch.current_turn as Player;
-    const currentBoard = boardStringToArray(currentMatch.board);
-    const moveIndex = selectAutoMove(currentBoard, turnSymbol);
-
-    if (moveIndex < 0 || currentBoard[moveIndex] !== null) return;
-
-    if (matchInfo.mySymbol === turnSymbol) {
+    if (matchInfo.mySymbol === currentMatch.current_turn) {
       afkActionsRef.current.recordAutoAction();
     }
 
-    await applyMoveUpdate(currentMatch, moveIndex, turnSymbol);
-  }, [currentMatch, matchInfo, applyMoveUpdate]);
+    try {
+      await runMatchAction(currentMatch.id, { action: "expire_phase" });
+    } catch (error) {
+      console.error("Failed to expire move phase:", error);
+      fetchData();
+    }
+  }, [currentMatch, matchInfo, runMatchAction, fetchData]);
 
   const timeLeft = useServerTimer(
     currentMatch?.phase_deadline || null,
@@ -906,25 +848,26 @@ export default function TournamentGame({
     if (!currentMatch || !matchInfo || hasSubmittedBidRef.current) return;
 
     hasSubmittedBidRef.current = true;
-    if (!isAuto) afkActions?.recordManualAction();
+    if (!isAuto) afkActionsRef.current.recordManualAction();
     play("bidPlace");
 
     const actualBid = Math.max(1, Math.min(bidAmount, matchInfo.myCoins));
 
     try {
-      const updateData: Record<string, unknown> = matchInfo.isPlayer1
-        ? { player1_bid: actualBid }
-        : { player2_bid: actualBid };
-
-      await supabase
-        .from('tournament_matches')
-        .update(updateData)
-        .eq('id', currentMatch.id);
+      await runMatchAction(currentMatch.id, {
+        action: "submit_bid",
+        bidAmount: actualBid,
+      });
     } catch (error) {
       console.error("Error submitting bid:", error);
       hasSubmittedBidRef.current = false;
+      toast({
+        title: "Bid failed",
+        description: "We couldn't confirm your bid. Please tap again.",
+        variant: "destructive",
+      });
     }
-  }, [currentMatch, matchInfo]);
+  }, [currentMatch, matchInfo, play, runMatchAction, toast]);
 
   // Watchdog hook for timeout failsafes - placed after handlers are defined
   const handleForceBid = useCallback(() => {
@@ -942,25 +885,18 @@ export default function TournamentGame({
   // Forfeit handler for AFK system
   const handleAfkForfeit = useCallback(async () => {
     if (!currentMatch || !matchInfo || currentMatch.status !== 'playing') return;
-    
-    const winnerStr = matchInfo.isPlayer1 ? "player2" : "player1";
-    
-    await supabase
-      .from('tournament_matches')
-      .update({
-        match_winner: winnerStr,
-        status: 'completed',
-        completed_at: new Date().toISOString(),
-      })
-      .eq('id', currentMatch.id);
-    
-    await supabase
-      .from('tournament_players')
-      .update({ is_eliminated: true })
-      .eq('id', currentPlayerId);
-      
-    console.warn('[AFK] Player forfeited due to inactivity');
-  }, [currentMatch, matchInfo, currentPlayerId]);
+
+    try {
+      await runMatchAction(currentMatch.id, {
+        action: "forfeit_match",
+        reason: "afk",
+      });
+      console.warn('[AFK] Player forfeited due to inactivity');
+    } catch (error) {
+      console.error("Failed to process AFK forfeit:", error);
+      fetchData();
+    }
+  }, [currentMatch, matchInfo, runMatchAction, fetchData]);
 
   // AFK detection hook
   const afkActions = useAfkDetection(
@@ -1030,28 +966,31 @@ export default function TournamentGame({
     if (!heartbeat.opponentDisconnected || heartbeat.opponentGraceRemaining === null) return;
     
     if (heartbeat.opponentGraceRemaining <= 0 && currentMatch && matchInfo && currentMatch.status === 'playing') {
-      // Opponent's grace expired — forfeit them
-      const winnerStr = matchInfo.isPlayer1 ? "player1" : "player2";
-      
       const doForfeit = async () => {
-        await supabase
-          .from('tournament_matches')
-          .update({
-            match_winner: winnerStr,
-            status: 'completed',
-            completed_at: new Date().toISOString(),
-          })
-          .eq('id', currentMatch.id);
-        
-        await supabase
-          .from('tournament_players')
-          .update({ is_eliminated: true, connection_status: 'left' })
-          .eq('id', opponentId!);
+        try {
+          await runMatchAction(currentMatch.id, {
+            action: "finalize_match",
+          });
+        } catch {
+          // Ignore and fall through to authoritative forfeit.
+        }
+
+        try {
+          await invokeTournamentAction<TournamentMatch>({
+            action: "forfeit_match",
+            playerId: opponentId!,
+            matchId: currentMatch.id,
+            reason: "disconnect",
+          });
+          fetchData();
+        } catch (error) {
+          console.error("Failed to forfeit disconnected opponent:", error);
+        }
       };
       
-      doForfeit();
+      void doForfeit();
     }
-  }, [heartbeat.opponentDisconnected, heartbeat.opponentGraceRemaining, currentMatch, matchInfo, opponentId]);
+  }, [heartbeat.opponentDisconnected, heartbeat.opponentGraceRemaining, currentMatch, matchInfo, opponentId, runMatchAction, fetchData]);
 
   const resolveBids = useCallback(async (p1Bid: number, p2Bid: number) => {
     if (!currentMatch || !matchInfo) return;
@@ -1060,116 +999,82 @@ export default function TournamentGame({
 
     const isTie = p1Bid === p2Bid;
 
-    // Only Player 1 resolves and writes to DB — this is the authoritative path
-    if (matchInfo.isPlayer1) {
-      let bidWinnerSymbol: Player;
+    if (isTie) {
+      setIsCoinFlipping(true);
+      setNotification({
+        type: "coin_toss_animation",
+        message: "🪙 Tie! Coin Toss...",
+        subMessage: "Flipping the coin…",
+      });
 
-      if (p1Bid > p2Bid) {
-        bidWinnerSymbol = "X";
-      } else if (p2Bid > p1Bid) {
-        bidWinnerSymbol = "O";
-      } else {
-        // Tie — P1 does the coin toss authoritatively
-        bidWinnerSymbol = generateFairCoinToss() ? "X" : "O";
-
-        // Show coin toss animation for P1
-        setIsCoinFlipping(true);
-        setNotification({
-          type: "coin_toss_animation",
-          message: "🪙 Tie! Coin Toss...",
-          subMessage: "Flipping the coin…",
-        });
-
-        await new Promise(resolve => setTimeout(resolve, COIN_TOSS_ANIMATION_TIME));
-        setIsCoinFlipping(false);
-      }
-
-      const newP1Coins = currentMatch.player1_coins - p1Bid;
-      const newP2Coins = currentMatch.player2_coins - p2Bid;
-      const deadline = new Date(Date.now() + PHASE_TIME * 1000).toISOString();
-
-      // Write authoritative result to DB
-      await supabase
-        .from('tournament_matches')
-        .update({
-          player1_coins: newP1Coins,
-          player2_coins: newP2Coins,
-          bid_winner: bidWinnerSymbol,
-          current_turn: bidWinnerSymbol,
-          is_bidding_phase: false,
-          player1_bid: null,
-          player2_bid: null,
-          phase_deadline: deadline,
-          last_bid_result: {
-            player1Bid: p1Bid,
-            player2Bid: p2Bid,
-            winner: bidWinnerSymbol,
-          },
-        })
-        .eq('id', currentMatch.id);
-
-      // Show result notification for P1
-      const didWin = bidWinnerSymbol === "X"; // P1 is always X
-      const myBidAmount = p1Bid;
-      const oppBidAmount = p2Bid;
-
-      if (isTie) {
-        setNotification({
-          type: "tie_coin_toss",
-          message: "🪙 Coin Toss Result!",
-          subMessage: `Both bid $${myBidAmount}. ${didWin ? "You" : matchInfo.opponent.player_name} won the toss!`,
-        });
-      } else {
-        setNotification({
-          type: didWin ? "bid_win" : "bid_lose",
-          message: didWin ? "🎯 You Won the Bid!" : `💻 ${matchInfo.opponent.player_name} Won!`,
-          subMessage: `You bid $${myBidAmount} vs $${oppBidAmount}`,
-        });
-      }
-
-      setTimeout(() => {
-        setNotification(null);
-        setIsProcessing(false);
-        play("turnChange");
-      }, BID_RESULT_DELAY);
-
-    } else {
-      // Player 2: Do NOT resolve independently.
-      // Show animation for tie, then wait for P1's authoritative result via realtime/polling.
-      if (isTie) {
-        setIsCoinFlipping(true);
-        setNotification({
-          type: "coin_toss_animation",
-          message: "🪙 Tie! Coin Toss...",
-          subMessage: "Flipping the coin…",
-        });
-
-        // Fallback: if P1's result doesn't arrive within timeout, re-fetch from DB
+      if (!matchInfo.isPlayer1) {
         coinTossTimeoutRef.current = setTimeout(async () => {
-          // Re-fetch match state from DB to get P1's authoritative result
-          const { data: freshMatch } = await supabase
-            .from('tournament_matches')
-            .select('*')
-            .eq('id', currentMatch.id)
-            .single();
-
-          if (freshMatch && freshMatch.bid_winner && !freshMatch.is_bidding_phase) {
-            // P1's result is in DB — use it
-            setCurrentMatch(freshMatch as unknown as TournamentMatch);
-          } else {
-            // P1 hasn't written yet — keep waiting, polling will pick it up
-            console.log('[CoinToss] P1 result not yet in DB, polling will handle it');
+          try {
+            await runMatchAction(currentMatch.id, { action: "finalize_bids" });
+          } catch (error) {
+            console.error("Coin toss fallback failed:", error);
+            fetchData();
           }
         }, COIN_TOSS_TIMEOUT);
-      } else {
-        // Non-tie: P2 just waits for P1's DB write via realtime/polling
-        // The useEffect above will show the notification when the result arrives
+      }
+    }
+
+    try {
+      const response = await runMatchAction(currentMatch.id, { action: "finalize_bids" });
+      const resolvedMatch = response.match;
+
+      if (!resolvedMatch?.last_bid_result || !resolvedMatch.bid_winner) {
+        return;
       }
 
-      // Don't clear isProcessing — the useEffect handler will do that when P1's result arrives
+      const resultKey = `${resolvedMatch.id}-${resolvedMatch.current_round}-${JSON.stringify(resolvedMatch.last_bid_result)}`;
+      lastSeenBidResultRef.current = resultKey;
+
+      if (matchInfo.isPlayer1) {
+        if (coinTossTimeoutRef.current) {
+          clearTimeout(coinTossTimeoutRef.current);
+          coinTossTimeoutRef.current = null;
+        }
+
+        if (isTie) {
+          await new Promise((resolve) => setTimeout(resolve, COIN_TOSS_ANIMATION_TIME));
+          setIsCoinFlipping(false);
+        }
+
+        const authoritativeWinner = resolvedMatch.bid_winner as Player;
+        const bidResult = resolvedMatch.last_bid_result;
+        const didWin = authoritativeWinner === matchInfo.mySymbol;
+        const myBidAmount = matchInfo.isPlayer1 ? bidResult.player1Bid : bidResult.player2Bid;
+        const oppBidAmount = matchInfo.isPlayer1 ? bidResult.player2Bid : bidResult.player1Bid;
+
+        setNotification({
+          type: isTie ? "tie_coin_toss" : (didWin ? "bid_win" : "bid_lose"),
+          message: isTie
+            ? "🪙 Coin Toss Result!"
+            : (didWin ? "🎯 You Won the Bid!" : `💻 ${matchInfo.opponent.player_name} Won!`),
+          subMessage: isTie
+            ? `Both bid $${myBidAmount}. ${didWin ? "You" : matchInfo.opponent.player_name} won the toss!`
+            : `You bid $${myBidAmount} vs $${oppBidAmount}`,
+        });
+
+        setTimeout(() => {
+          setNotification(null);
+          setIsProcessing(false);
+          play("turnChange");
+        }, BID_RESULT_DELAY);
+      } else if (!isTie) {
+        setIsProcessing(false);
+      }
+    } catch (error) {
+      console.error("Failed to resolve bids:", error);
+      setNotification(null);
+      setIsCoinFlipping(false);
       setIsProcessing(false);
+      fetchData();
+    } finally {
+      isResolvingBidsRef.current = false;
     }
-  }, [currentMatch, matchInfo]);
+  }, [currentMatch, matchInfo, runMatchAction, play, fetchData]);
 
   const makeMove = useCallback(async (index: number) => {
     if (!gameStarted || !isMyTurn || board[index] !== null || winner || !currentMatch || !matchInfo || isBiddingPhase || bidWinner !== matchInfo.mySymbol) {
@@ -1237,41 +1142,33 @@ export default function TournamentGame({
   const handleMatchComplete = useCallback(async (matchWinnerStr: "player1" | "player2") => {
     if (!currentMatch || !matchInfo) return;
 
+    try {
+      await runMatchAction(currentMatch.id, { action: "finalize_match" });
+    } catch (error) {
+      console.error("Failed to finalize match progression:", error);
+      fetchData();
+    }
+
     const winnerId = matchWinnerStr === "player1" ? currentMatch.player1_id : currentMatch.player2_id;
     const loserId = matchWinnerStr === "player1" ? currentMatch.player2_id : currentMatch.player1_id;
     const didWin = winnerId === currentPlayerId;
-    const currentRoundNumber = currentMatch.round_number || 1;
-
-    // Mark loser as eliminated
-    await supabase
-      .from('tournament_players')
-      .update({ is_eliminated: true })
-      .eq('id', loserId);
-
-    // Refetch all players to get latest elimination state
-    const { data: latestPlayers } = await supabase
-      .from('tournament_players')
-      .select('*')
-      .eq('tournament_id', tournamentId);
+    const [{ data: latestPlayers }, { data: tournamentState }] = await Promise.all([
+      supabase
+        .from('tournament_players')
+        .select('*')
+        .eq('tournament_id', tournamentId),
+      supabase
+        .from('tournaments')
+        .select('status')
+        .eq('id', tournamentId)
+        .single(),
+    ]);
 
     const updatedAllPlayers = latestPlayers || allPlayers;
     const remainingPlayersList = getRemainingPlayers(updatedAllPlayers);
-    const eliminatedCount = updatedAllPlayers.filter(p => p.is_eliminated).length;
-
-    // Tournament is complete when only 1 (or 0) non-eliminated players remain
-    const tournamentComplete = remainingPlayersList.length <= 1;
+    const tournamentComplete = tournamentState?.status === 'completed' || remainingPlayersList.length <= 1;
 
     if (tournamentComplete) {
-      // Tournament complete! Update status
-      await supabase
-        .from('tournaments')
-        .update({
-          status: 'completed',
-          completed_at: new Date().toISOString(),
-        })
-        .eq('id', tournamentId);
-
-      // Build full rankings: winner first, then eliminated in reverse order of elimination
       const winnerPlayer = updatedAllPlayers.find(p => p.id === winnerId);
       const loserPlayer = updatedAllPlayers.find(p => p.id === loserId);
       const otherEliminated = updatedAllPlayers.filter(
@@ -1305,15 +1202,7 @@ export default function TournamentGame({
       setTournamentRankings(rankings);
       setShowTournamentWinner(true);
     } else {
-      // More rounds to go
-      // Player1 of this match is responsible for creating next round (idempotent)
-      const created = await createNextRoundMatches(tournamentId, currentRoundNumber);
-      if (created) {
-        console.log(`[Progression] Created round ${currentRoundNumber + 1} matches`);
-      }
-
       if (!didWin) {
-        // Eliminated player: immediately show leaderboard
         const finishPosition = remainingPlayersList.length + 1;
         setNotification(null);
 
@@ -1336,22 +1225,16 @@ export default function TournamentGame({
         setTournamentRankings(rankings);
         setShowTournamentWinner(true);
       } else {
-        // Winner: immediately advance to next match
         setNotification(null);
-
-        await supabase
-          .from('tournament_players')
-          .update({ is_ready: false })
-          .eq('id', currentPlayerId);
 
         setIsReady(false);
         setCurrentMatch(null);
         byeCheckDoneRef.current = false;
         setHasByeAdvancement(false);
-        fetchData();
+        await fetchData();
       }
     }
-  }, [currentMatch, matchInfo, currentPlayerId, allPlayers, totalPlayerCount, tournamentId, fetchData]);
+  }, [currentMatch, matchInfo, currentPlayerId, allPlayers, tournamentId, fetchData, runMatchAction]);
 
   // Keep ref in sync
   handleMatchCompleteRef.current = handleMatchComplete;
@@ -1381,9 +1264,9 @@ export default function TournamentGame({
       // Show the final round result for a moment before transitioning
       setIsProcessing(false);
       const matchWinner = currentMatch.match_winner as "player1" | "player2";
-      setTimeout(() => {
+      setTimeout(async () => {
         setNotification(null);
-        handleMatchCompleteRef.current(matchWinner);
+        await handleMatchCompleteRef.current(matchWinner);
       }, ROUND_RESULT_DELAY);
     }
   }, [currentMatch?.match_winner, currentMatch?.status, matchInfo, currentPlayerId, showTournamentWinner]);
@@ -1415,35 +1298,21 @@ export default function TournamentGame({
 
   const handleConfirmLeave = async () => {
     setShowConfirmLeave(false);
-    
-    // Mark as intentionally left — no rejoin allowed
+
     await supabase
       .from('tournament_players')
       .update({ connection_status: 'left' })
       .eq('id', currentPlayerId);
-    
-    // If in an active match, forfeit the match and trigger progression
-    if (currentMatch && currentMatch.status === 'playing' && matchInfo) {
-      const winnerStr = matchInfo.isPlayer1 ? "player2" : "player1";
-      
-      await supabase
-        .from('tournament_matches')
-        .update({
-          match_winner: winnerStr,
-          status: 'completed',
-          completed_at: new Date().toISOString(),
-        })
-        .eq('id', currentMatch.id);
-      
-      // Mark self as eliminated
-      await supabase
-        .from('tournament_players')
-        .update({ is_eliminated: true })
-        .eq('id', currentPlayerId);
 
-      // Trigger tournament progression so opponent advances
-      const currentRoundNumber = currentMatch.round_number || 1;
-      await createNextRoundMatches(tournamentId, currentRoundNumber);
+    if (currentMatch && currentMatch.status === 'playing') {
+      try {
+        await runMatchAction(currentMatch.id, {
+          action: "forfeit_match",
+          reason: "leave",
+        });
+      } catch (error) {
+        console.error("Failed to leave match cleanly:", error);
+      }
     }
     
     clearMatchSession();
