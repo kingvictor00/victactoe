@@ -809,7 +809,7 @@ export default function TournamentGame({
 
   // Server-synced timer using RAF — resolves from authoritative match state
   const handleTimerExpire = useCallback(async () => {
-    if (!currentMatch || !matchInfo || currentMatch.match_winner || currentMatch.winner) return;
+    if (!currentMatch || !matchInfo || currentMatch.match_winner || currentMatch.winner || isCoinFlipping) return;
 
     if (currentMatch.is_bidding_phase) {
       let localTimedOut = false;
