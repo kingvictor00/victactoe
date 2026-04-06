@@ -480,6 +480,7 @@ export default function TournamentGame({
         });
         
         setTimeout(() => {
+          bidResultDismissedRef.current = true;
           setNotification(null);
           setIsProcessing(false);
           play("turnChange");
@@ -518,6 +519,7 @@ export default function TournamentGame({
         });
         
         setTimeout(() => {
+          bidResultDismissedRef.current = true;
           setNotification(null);
           setIsProcessing(false);
           play("turnChange");
