@@ -1778,7 +1778,7 @@ export default function TournamentGame({
           )}
 
           {/* Opponent's Turn */}
-          {!isBiddingPhase && !winner && !notification && !isProcessing && bidWinner !== matchInfo?.mySymbol && (
+          {!isBiddingPhase && !winner && !notification && !isProcessing && bidResultDismissedRef.current && bidWinner !== matchInfo?.mySymbol && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full rounded-xl bg-card p-3 text-center mb-2" style={{ boxShadow: 'var(--shadow-card)' }}>
               <p className="font-medium text-sm mb-1">{matchInfo?.opponent.player_name} is thinking</p>
               <div className="flex items-center justify-center gap-1">
