@@ -703,25 +703,41 @@ export default function TournamentGame({
       currentMatch.player1_bid === null &&
       currentMatch.player2_bid === null;
 
+    // Move phase is active — backend has resolved bids and is waiting for a move
+    const isMovePhaseLive =
+      currentMatch.status === "playing" &&
+      currentMatch.match_winner === null &&
+      !currentMatch.is_bidding_phase &&
+      currentMatch.bid_winner !== null;
+
     const shouldReleaseProcessingState =
       currentMatch.status === "completed" ||
       (
         currentMatch.status === "playing" &&
         currentMatch.match_winner === null &&
-        (
-          shouldClearTransientUi ||
-          (!currentMatch.is_bidding_phase && currentMatch.bid_winner !== null)
-        )
+        (shouldClearTransientUi || isMovePhaseLive)
       );
 
-    if (coinTossTimeoutRef.current && (shouldClearTransientUi || currentMatch.status === "completed")) {
+    if (coinTossTimeoutRef.current && (shouldClearTransientUi || currentMatch.status === "completed" || isMovePhaseLive)) {
       clearTimeout(coinTossTimeoutRef.current);
       coinTossTimeoutRef.current = null;
     }
 
     if (shouldReleaseProcessingState) {
       setIsProcessing(false);
+      // Always clear coin flipping when move phase is live — the flip is done
+      if (isCoinFlipping && (shouldClearTransientUi || isMovePhaseLive || currentMatch.status === "completed")) {
+        setIsCoinFlipping(false);
+      }
+    }
+
+    // Clear stale coin_toss_animation overlay when move phase is already active
+    if (
+      isMovePhaseLive &&
+      notification?.type === "coin_toss_animation"
+    ) {
       setIsCoinFlipping(false);
+      setNotification(null);
     }
 
     if (
@@ -742,6 +758,7 @@ export default function TournamentGame({
     currentMatch?.player1_bid,
     currentMatch?.player2_bid,
     notification,
+    isCoinFlipping,
   ]);
 
   const checkWinner = useCallback((currentBoard: Board, p1Coins: number, p2Coins: number): { winner: Player | "tie" | null; line: number[] | null } => {
@@ -792,7 +809,7 @@ export default function TournamentGame({
 
   // Server-synced timer using RAF — resolves from authoritative match state
   const handleTimerExpire = useCallback(async () => {
-    if (!currentMatch || !matchInfo || currentMatch.match_winner || currentMatch.winner) return;
+    if (!currentMatch || !matchInfo || currentMatch.match_winner || currentMatch.winner || isCoinFlipping) return;
 
     if (currentMatch.is_bidding_phase) {
       let localTimedOut = false;
@@ -840,7 +857,7 @@ export default function TournamentGame({
 
   const timeLeft = useServerTimer(
     currentMatch?.phase_deadline || null,
-    gameStarted && !currentMatch?.match_winner && !notification && !isProcessing,
+    gameStarted && !currentMatch?.match_winner && !notification && !isProcessing && !isCoinFlipping,
     handleTimerExpire,
   );
 
@@ -992,6 +1009,22 @@ export default function TournamentGame({
     }
   }, [heartbeat.opponentDisconnected, heartbeat.opponentGraceRemaining, currentMatch, matchInfo, opponentId, runMatchAction, fetchData]);
 
+  // Safety timeout: force-clear coin flip animation after max 6 seconds
+  useEffect(() => {
+    if (!isCoinFlipping) return;
+
+    const safetyTimer = setTimeout(() => {
+      console.warn('[CoinFlip] Safety timeout — forcing coin flip clear');
+      setIsCoinFlipping(false);
+      if (notification?.type === "coin_toss_animation") {
+        setNotification(null);
+      }
+      setIsProcessing(false);
+    }, 6000);
+
+    return () => clearTimeout(safetyTimer);
+  }, [isCoinFlipping, notification?.type]);
+
   const resolveBids = useCallback(async (p1Bid: number, p2Bid: number) => {
     if (!currentMatch || !matchInfo) return;
 
@@ -1077,7 +1110,7 @@ export default function TournamentGame({
   }, [currentMatch, matchInfo, runMatchAction, play, fetchData]);
 
   const makeMove = useCallback(async (index: number) => {
-    if (!gameStarted || !isMyTurn || board[index] !== null || winner || !currentMatch || !matchInfo || isBiddingPhase || bidWinner !== matchInfo.mySymbol) {
+    if (!gameStarted || !isMyTurn || board[index] !== null || winner || !currentMatch || !matchInfo || isBiddingPhase || bidWinner !== matchInfo.mySymbol || isCoinFlipping) {
       return;
     }
 
