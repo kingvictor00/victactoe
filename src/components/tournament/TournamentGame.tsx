@@ -1009,6 +1009,22 @@ export default function TournamentGame({
     }
   }, [heartbeat.opponentDisconnected, heartbeat.opponentGraceRemaining, currentMatch, matchInfo, opponentId, runMatchAction, fetchData]);
 
+  // Safety timeout: force-clear coin flip animation after max 6 seconds
+  useEffect(() => {
+    if (!isCoinFlipping) return;
+
+    const safetyTimer = setTimeout(() => {
+      console.warn('[CoinFlip] Safety timeout — forcing coin flip clear');
+      setIsCoinFlipping(false);
+      if (notification?.type === "coin_toss_animation") {
+        setNotification(null);
+      }
+      setIsProcessing(false);
+    }, 6000);
+
+    return () => clearTimeout(safetyTimer);
+  }, [isCoinFlipping, notification?.type]);
+
   const resolveBids = useCallback(async (p1Bid: number, p2Bid: number) => {
     if (!currentMatch || !matchInfo) return;
 
