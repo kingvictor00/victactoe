@@ -1760,7 +1760,7 @@ export default function TournamentGame({
           </AnimatePresence>
 
           {/* Your Turn Indicator */}
-          {!isBiddingPhase && !winner && !notification && !isProcessing && bidWinner === matchInfo?.mySymbol && (
+          {!isBiddingPhase && !winner && !notification && !isProcessing && bidResultDismissedRef.current && bidWinner === matchInfo?.mySymbol && (
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
