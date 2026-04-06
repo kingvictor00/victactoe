@@ -1094,7 +1094,7 @@ export default function TournamentGame({
   }, [currentMatch, matchInfo, runMatchAction, play, fetchData]);
 
   const makeMove = useCallback(async (index: number) => {
-    if (!gameStarted || !isMyTurn || board[index] !== null || winner || !currentMatch || !matchInfo || isBiddingPhase || bidWinner !== matchInfo.mySymbol) {
+    if (!gameStarted || !isMyTurn || board[index] !== null || winner || !currentMatch || !matchInfo || isBiddingPhase || bidWinner !== matchInfo.mySymbol || isCoinFlipping) {
       return;
     }
 
