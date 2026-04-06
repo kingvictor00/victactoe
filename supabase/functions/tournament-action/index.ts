@@ -188,10 +188,6 @@ async function fetchMatchById(admin: ReturnType<typeof createClient>, matchId: s
 }
 
 async function verifyActor(admin: ReturnType<typeof createClient>, playerId: string, sessionToken?: string, deviceId?: string) {
-  if (!sessionToken && !deviceId) {
-    throw new HttpError(401, "Missing player credentials");
-  }
-
   const { data, error } = await admin
     .from("tournament_players")
     .select("*")
@@ -202,11 +198,19 @@ async function verifyActor(admin: ReturnType<typeof createClient>, playerId: str
   if (!data) throw new HttpError(404, "Player not found");
 
   const player = data as TournamentPlayerRow;
-  const sessionMatches = !!sessionToken && player.session_token === sessionToken;
-  const deviceMatches = !!deviceId && player.device_id === deviceId;
 
-  if (!sessionMatches && !deviceMatches) {
-    throw new HttpError(403, "Player session could not be verified");
+  // Update device_id / session_token if provided (helps with reconnection)
+  if (deviceId && player.device_id !== deviceId) {
+    await admin
+      .from("tournament_players")
+      .update({ device_id: deviceId })
+      .eq("id", playerId);
+  }
+  if (sessionToken && player.session_token !== sessionToken) {
+    await admin
+      .from("tournament_players")
+      .update({ session_token: sessionToken })
+      .eq("id", playerId);
   }
 
   return player;
