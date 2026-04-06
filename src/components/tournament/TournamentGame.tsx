@@ -167,6 +167,7 @@ export default function TournamentGame({
   const [hasByeAdvancement, setHasByeAdvancement] = useState(false);
   const hasSubmittedBidRef = useRef(false);
   const isResolvingBidsRef = useRef(false);
+  const bidResultDismissedRef = useRef(false);
   const coinTossTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSeenBidResultRef = useRef<string | null>(null);
   const lastSeenRoundWinnerRef = useRef<string | null>(null);
