@@ -703,25 +703,41 @@ export default function TournamentGame({
       currentMatch.player1_bid === null &&
       currentMatch.player2_bid === null;
 
+    // Move phase is active — backend has resolved bids and is waiting for a move
+    const isMovePhaseLive =
+      currentMatch.status === "playing" &&
+      currentMatch.match_winner === null &&
+      !currentMatch.is_bidding_phase &&
+      currentMatch.bid_winner !== null;
+
     const shouldReleaseProcessingState =
       currentMatch.status === "completed" ||
       (
         currentMatch.status === "playing" &&
         currentMatch.match_winner === null &&
-        (
-          shouldClearTransientUi ||
-          (!currentMatch.is_bidding_phase && currentMatch.bid_winner !== null)
-        )
+        (shouldClearTransientUi || isMovePhaseLive)
       );
 
-    if (coinTossTimeoutRef.current && (shouldClearTransientUi || currentMatch.status === "completed")) {
+    if (coinTossTimeoutRef.current && (shouldClearTransientUi || currentMatch.status === "completed" || isMovePhaseLive)) {
       clearTimeout(coinTossTimeoutRef.current);
       coinTossTimeoutRef.current = null;
     }
 
     if (shouldReleaseProcessingState) {
       setIsProcessing(false);
+      // Always clear coin flipping when move phase is live — the flip is done
+      if (isCoinFlipping && (shouldClearTransientUi || isMovePhaseLive || currentMatch.status === "completed")) {
+        setIsCoinFlipping(false);
+      }
+    }
+
+    // Clear stale coin_toss_animation overlay when move phase is already active
+    if (
+      isMovePhaseLive &&
+      notification?.type === "coin_toss_animation"
+    ) {
       setIsCoinFlipping(false);
+      setNotification(null);
     }
 
     if (
@@ -742,6 +758,7 @@ export default function TournamentGame({
     currentMatch?.player1_bid,
     currentMatch?.player2_bid,
     notification,
+    isCoinFlipping,
   ]);
 
   const checkWinner = useCallback((currentBoard: Board, p1Coins: number, p2Coins: number): { winner: Player | "tie" | null; line: number[] | null } => {
