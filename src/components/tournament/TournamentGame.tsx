@@ -442,6 +442,7 @@ export default function TournamentGame({
     if (isBiddingPhase) {
       hasSubmittedBidRef.current = false;
       isResolvingBidsRef.current = false;
+      bidResultDismissedRef.current = false;
       lastSeenRoundWinnerRef.current = null;
       setPlayerBid(10);
     }
