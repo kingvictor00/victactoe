@@ -857,7 +857,7 @@ export default function TournamentGame({
 
   const timeLeft = useServerTimer(
     currentMatch?.phase_deadline || null,
-    gameStarted && !currentMatch?.match_winner && !notification && !isProcessing,
+    gameStarted && !currentMatch?.match_winner && !notification && !isProcessing && !isCoinFlipping,
     handleTimerExpire,
   );
 
