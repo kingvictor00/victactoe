@@ -850,7 +850,6 @@ export default function TournamentGame({
     if (!currentMatch || !matchInfo || hasSubmittedBidRef.current) return;
 
     hasSubmittedBidRef.current = true;
-    if (!isAuto) afkActionsRef.current.recordManualAction();
     play("bidPlace");
 
     const actualBid = Math.max(1, Math.min(bidAmount, matchInfo.myCoins));
@@ -884,39 +883,6 @@ export default function TournamentGame({
     fetchData();
   }, [fetchData]);
 
-  // Forfeit handler for AFK system
-  const handleAfkForfeit = useCallback(async () => {
-    if (!currentMatch || !matchInfo || currentMatch.status !== 'playing') return;
-
-    try {
-      await runMatchAction(currentMatch.id, {
-        action: "forfeit_match",
-        reason: "afk",
-      });
-      console.warn('[AFK] Player forfeited due to inactivity');
-    } catch (error) {
-      console.error("Failed to process AFK forfeit:", error);
-      fetchData();
-    }
-  }, [currentMatch, matchInfo, runMatchAction, fetchData]);
-
-  // AFK detection hook
-  const afkActions = useAfkDetection(
-    {
-      enabled: gameStarted && !showTournamentWinner && !winner,
-      matchId: currentMatch?.id || null,
-      isMyTurn,
-      isBiddingPhase,
-      gameStarted,
-      winner,
-      matchWinner: currentMatch?.match_winner || null,
-    },
-    handleAfkForfeit,
-  );
-
-  // Keep refs in sync so callbacks defined earlier can use them
-  afkActionsRef.current = afkActions;
-
   useTournamentWatchdog(
     {
       matchId: currentMatch?.id || null,
@@ -928,75 +894,14 @@ export default function TournamentGame({
       isProcessing,
       winner,
       enabled: gameStarted && !showTournamentWinner,
-      // Block all auto-fallbacks while an overlay/coin-flip is active or the
-      // opponent is mid-disconnect — otherwise we double-fire with the server
-      // timer and the game ends up "playing on its own".
-      blocked: !!notification || isCoinFlipping || heartbeat.opponentDisconnected,
+      // Block auto-fallbacks while an overlay/coin-flip is active so we don't
+      // double-fire with the server timer.
+      blocked: !!notification || isCoinFlipping,
     },
     handleForceBid,
     handleForceMove,
     handleForceRefresh
   );
-
-  // beforeunload: mark as "left" + forfeit if player closes tab mid-match
-  useEffect(() => {
-    if (!currentMatch || currentMatch.status !== 'playing' || !matchInfo || showTournamentWinner) return;
-
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = '';
-      
-      // Mark as "left" so opponent knows it's intentional
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/tournament_players?id=eq.${currentPlayerId}`;
-      const headers = {
-        'Content-Type': 'application/json',
-        'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        'Prefer': 'return=minimal',
-      };
-      const body = JSON.stringify({ connection_status: 'left' });
-      navigator.sendBeacon?.(url); // Best-effort
-      
-      // Also try to forfeit
-      const matchUrl = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/tournament_matches?id=eq.${currentMatch.id}`;
-      const winnerStr = matchInfo.isPlayer1 ? "player2" : "player1";
-      navigator.sendBeacon?.(matchUrl);
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [currentMatch?.id, currentMatch?.status, matchInfo?.isPlayer1, showTournamentWinner, currentPlayerId]);
-
-  // Opponent disconnect grace period expiry → auto-forfeit opponent
-  useEffect(() => {
-    if (!heartbeat.opponentDisconnected || heartbeat.opponentGraceRemaining === null) return;
-    
-    if (heartbeat.opponentGraceRemaining <= 0 && currentMatch && matchInfo && currentMatch.status === 'playing') {
-      const doForfeit = async () => {
-        try {
-          await runMatchAction(currentMatch.id, {
-            action: "finalize_match",
-          });
-        } catch {
-          // Ignore and fall through to authoritative forfeit.
-        }
-
-        try {
-          await invokeTournamentAction<TournamentMatch>({
-            action: "forfeit_match",
-            playerId: opponentId!,
-            matchId: currentMatch.id,
-            reason: "disconnect",
-          });
-          fetchData();
-        } catch (error) {
-          console.error("Failed to forfeit disconnected opponent:", error);
-        }
-      };
-      
-      void doForfeit();
-    }
-  }, [heartbeat.opponentDisconnected, heartbeat.opponentGraceRemaining, currentMatch, matchInfo, opponentId, runMatchAction, fetchData]);
 
   // Safety timeout: force-clear coin flip animation after max 6 seconds
   useEffect(() => {
