@@ -257,8 +257,14 @@ export default function TournamentLobby({
       const hasExistingMatches = (existingMatchCount ?? 0) > 0;
 
       if (!hasExistingMatches) {
-        // Generate random seed positions for all players
-        const shuffledPlayers = [...activePlayers].sort(() => Math.random() - 0.5);
+        // Cryptographically secure Fisher-Yates shuffle for fair seeding
+        const shuffledPlayers = [...activePlayers];
+        for (let i = shuffledPlayers.length - 1; i > 0; i--) {
+          const randomValues = new Uint32Array(1);
+          crypto.getRandomValues(randomValues);
+          const j = randomValues[0] % (i + 1);
+          [shuffledPlayers[i], shuffledPlayers[j]] = [shuffledPlayers[j], shuffledPlayers[i]];
+        }
 
         // Update each player with their seed position AND reset is_ready to false
         const updateResults = await Promise.all(
