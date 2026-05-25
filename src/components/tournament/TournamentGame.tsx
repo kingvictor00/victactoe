@@ -764,15 +764,6 @@ export default function TournamentGame({
     }
   }, [runMatchAction]);
 
-  const autoPlayMove = useCallback(async () => {
-    if (!currentMatch || !matchInfo) return;
-
-    const moveIndex = selectAutoMove(board, matchInfo.mySymbol);
-    if (moveIndex < 0) return;
-
-    await makeMove(moveIndex);
-  }, [board, currentMatch, matchInfo]);
-
   // Server-synced timer using RAF — resolves from authoritative match state
   const handleTimerExpire = useCallback(async () => {
     if (!currentMatch || !matchInfo || currentMatch.match_winner || currentMatch.winner || isCoinFlipping) return;
@@ -838,39 +829,6 @@ export default function TournamentGame({
       });
     }
   }, [currentMatch, matchInfo, play, runMatchAction, toast]);
-
-  // Watchdog hook for timeout failsafes - placed after handlers are defined
-  const handleForceBid = useCallback(() => {
-    void handleTimerExpire();
-  }, [handleTimerExpire]);
-  
-  const handleForceMove = useCallback(() => {
-    void handleTimerExpire();
-  }, [handleTimerExpire]);
-  
-  const handleForceRefresh = useCallback(() => {
-    fetchData();
-  }, [fetchData]);
-
-  useTournamentWatchdog(
-    {
-      matchId: currentMatch?.id || null,
-      isPlayer1: matchInfo?.isPlayer1 || false,
-      isBiddingPhase,
-      hasSubmittedBid: hasSubmittedBidRef.current,
-      bidWinner: bidWinner || null,
-      mySymbol: matchInfo?.mySymbol || "X",
-      isProcessing,
-      winner,
-      enabled: gameStarted && !showTournamentWinner,
-      // Block auto-fallbacks while an overlay/coin-flip is active so we don't
-      // double-fire with the server timer.
-      blocked: !!notification || isCoinFlipping,
-    },
-    handleForceBid,
-    handleForceMove,
-    handleForceRefresh
-  );
 
   // Safety timeout: force-clear coin flip animation after max 6 seconds
   useEffect(() => {
