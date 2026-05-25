@@ -1568,7 +1568,7 @@ export default function TournamentGame({
                   key={index}
                   className={`game-cell ${cell === "X" ? "x" : cell === "O" ? "o" : ""} ${winningLine?.includes(index) ? "animate-winner-glow" : ""}`}
                   onClick={() => makeMove(index)}
-                  disabled={cell !== null || !isMyTurn || !!winner || isBiddingPhase || bidWinner !== matchInfo?.mySymbol || isProcessing}
+                  disabled={cell !== null || !isMyTurn || !!winner || isBiddingPhase || bidWinner !== matchInfo?.mySymbol || isProcessing || isCoinFlipping || !!notification || !bidResultDismissedRef.current}
                   whileTap={{ scale: 0.95 }}
                 >
                   <AnimatePresence mode="wait">
