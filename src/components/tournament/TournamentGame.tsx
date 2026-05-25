@@ -830,21 +830,17 @@ export default function TournamentGame({
     }
   }, [currentMatch, matchInfo, play, runMatchAction, toast]);
 
-  // Safety timeout: force-clear coin flip animation after max 6 seconds
+  // Safety timeout: recover stale coin-flip state without unlocking the board underneath.
   useEffect(() => {
     if (!isCoinFlipping) return;
 
     const safetyTimer = setTimeout(() => {
-      console.warn('[CoinFlip] Safety timeout — forcing coin flip clear');
-      setIsCoinFlipping(false);
-      if (notification?.type === "coin_toss_animation") {
-        setNotification(null);
-      }
-      setIsProcessing(false);
-    }, 6000);
+      console.warn('[CoinFlip] Safety timeout — refreshing authoritative match state');
+      fetchData();
+    }, COIN_TOSS_TIMEOUT + COIN_TOSS_ANIMATION_TIME);
 
     return () => clearTimeout(safetyTimer);
-  }, [isCoinFlipping, notification?.type]);
+  }, [fetchData, isCoinFlipping]);
 
   const resolveBids = useCallback(async (p1Bid: number, p2Bid: number) => {
     if (!currentMatch || !matchInfo) return;
@@ -932,7 +928,7 @@ export default function TournamentGame({
   }, [currentMatch, matchInfo, runMatchAction, play, fetchData]);
 
   const makeMove = useCallback(async (index: number) => {
-    if (!gameStarted || !isMyTurn || board[index] !== null || winner || !currentMatch || !matchInfo || isBiddingPhase || bidWinner !== matchInfo.mySymbol || isCoinFlipping) {
+    if (!gameStarted || !isMyTurn || board[index] !== null || winner || !currentMatch || !matchInfo || isBiddingPhase || bidWinner !== matchInfo.mySymbol || isCoinFlipping || isProcessing || !!notification || !bidResultDismissedRef.current) {
       return;
     }
 
@@ -991,7 +987,7 @@ export default function TournamentGame({
     }
 
     setIsProcessing(false);
-  }, [gameStarted, isMyTurn, board, winner, currentMatch, matchInfo, isBiddingPhase, bidWinner, applyMoveUpdate, play]);
+  }, [gameStarted, isMyTurn, board, winner, currentMatch, matchInfo, isBiddingPhase, bidWinner, isCoinFlipping, isProcessing, notification, applyMoveUpdate, play]);
 
   const handleMatchComplete = useCallback(async (matchWinnerStr: "player1" | "player2") => {
     if (!currentMatch || !matchInfo) return;
