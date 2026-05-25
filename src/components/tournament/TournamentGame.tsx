@@ -175,6 +175,10 @@ export default function TournamentGame({
   const roundTransitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Refs to break circular initialization dependencies (TDZ)
   const afkActionsRef = useRef<{ recordAutoAction: () => void; recordManualAction: () => void }>({ recordAutoAction: () => {}, recordManualAction: () => {} });
+  // Deduplicate timer-expire & auto-action so a single phase deadline cannot
+  // be processed twice (server timer + watchdog double-fire bug).
+  const expiredDeadlineRef = useRef<string | null>(null);
+  const recordedAutoForDeadlineRef = useRef<string | null>(null);
   const handleMatchCompleteRef = useRef<(w: "player1" | "player2") => Promise<void>>(async () => {});
   const { toast } = useToast();
   const { isMuted, toggleMute, play } = useGameSounds();
@@ -815,6 +819,18 @@ export default function TournamentGame({
   const handleTimerExpire = useCallback(async () => {
     if (!currentMatch || !matchInfo || currentMatch.match_winner || currentMatch.winner || isCoinFlipping) return;
 
+    // Dedupe: a phase deadline must be processed at most once per client,
+    // no matter how many sources (server timer, watchdog) try to fire it.
+    const deadlineKey = `${currentMatch.id}:${currentMatch.current_round}:${currentMatch.phase_deadline ?? ""}:${currentMatch.is_bidding_phase ? "bid" : "move"}`;
+    if (expiredDeadlineRef.current === deadlineKey) return;
+    expiredDeadlineRef.current = deadlineKey;
+
+    const recordAutoOnce = () => {
+      if (recordedAutoForDeadlineRef.current === deadlineKey) return;
+      recordedAutoForDeadlineRef.current = deadlineKey;
+      afkActionsRef.current.recordAutoAction();
+    };
+
     if (currentMatch.is_bidding_phase) {
       let localTimedOut = false;
 
@@ -834,7 +850,7 @@ export default function TournamentGame({
       }
 
       if (localTimedOut) {
-        afkActionsRef.current.recordAutoAction();
+        recordAutoOnce();
       }
 
       try {
@@ -848,7 +864,7 @@ export default function TournamentGame({
     }
 
     if (matchInfo.mySymbol === currentMatch.current_turn) {
-      afkActionsRef.current.recordAutoAction();
+      recordAutoOnce();
     }
 
     try {
@@ -857,7 +873,7 @@ export default function TournamentGame({
       console.error("Failed to expire move phase:", error);
       fetchData();
     }
-  }, [currentMatch, matchInfo, runMatchAction, fetchData]);
+  }, [currentMatch, matchInfo, runMatchAction, fetchData, isCoinFlipping]);
 
   const timeLeft = useServerTimer(
     currentMatch?.phase_deadline || null,
@@ -947,6 +963,10 @@ export default function TournamentGame({
       isProcessing,
       winner,
       enabled: gameStarted && !showTournamentWinner,
+      // Block all auto-fallbacks while an overlay/coin-flip is active or the
+      // opponent is mid-disconnect — otherwise we double-fire with the server
+      // timer and the game ends up "playing on its own".
+      blocked: !!notification || isCoinFlipping || heartbeat.opponentDisconnected,
     },
     handleForceBid,
     handleForceMove,
@@ -1604,7 +1624,7 @@ export default function TournamentGame({
         <div className="flex-1 flex flex-col items-center justify-center min-h-0">
           {/* AFK Warning Overlay — compact banner */}
           <AnimatePresence>
-            {afkActions.isAway && afkActions.recoveryCountdown !== null && (
+            {afkActions.isAway && afkActions.recoveryCountdown !== null && !heartbeat.opponentDisconnected && (
               <motion.div
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}

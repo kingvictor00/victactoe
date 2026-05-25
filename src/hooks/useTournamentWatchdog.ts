@@ -11,12 +11,16 @@ interface WatchdogConfig {
   isProcessing: boolean;
   winner: string | null;
   enabled: boolean;
+  // When true (notification overlay/coin flip showing), watchdog must NOT auto-fire
+  blocked?: boolean;
 }
 
 // Maximum time a phase can stall before auto-recovery
-const PHASE_STALL_TIMEOUT = 30000; // 30 seconds
-const BIDDING_FALLBACK_TIMEOUT = 25000; // 25 seconds for bidding
-const MOVE_FALLBACK_TIMEOUT = 25000; // 25 seconds for moves
+// These must be STRICTLY LONGER than the server-side phase deadline (20s) so the
+// server timer always wins. Watchdog is a deep failsafe only — not a parallel timer.
+const PHASE_STALL_TIMEOUT = 45000; // 45 seconds before forcing a state refresh
+const BIDDING_FALLBACK_TIMEOUT = 45000; // 45 seconds — well after the 20s server timer
+const MOVE_FALLBACK_TIMEOUT = 45000;
 
 /**
  * Hook that monitors game state and auto-recovers from stalled phases
@@ -43,6 +47,7 @@ export const useTournamentWatchdog = (
     isProcessing,
     winner,
     enabled,
+    blocked,
   } = config;
   
   // Track state changes
@@ -95,7 +100,7 @@ export const useTournamentWatchdog = (
   
   // Bidding phase fallback - auto-submit minimum bid if stuck
   useEffect(() => {
-    if (!enabled || !matchId || !isBiddingPhase || hasSubmittedBid || winner || isProcessing) {
+    if (!enabled || blocked || !matchId || !isBiddingPhase || hasSubmittedBid || winner || isProcessing) {
       if (biddingFallbackRef.current) {
         clearTimeout(biddingFallbackRef.current);
         biddingFallbackRef.current = null;
@@ -114,12 +119,13 @@ export const useTournamentWatchdog = (
         biddingFallbackRef.current = null;
       }
     };
-  }, [enabled, matchId, isBiddingPhase, hasSubmittedBid, winner, isProcessing, onForceBid]);
+  }, [enabled, blocked, matchId, isBiddingPhase, hasSubmittedBid, winner, isProcessing, onForceBid]);
   
   // Move phase fallback - auto-play random move if stuck
   useEffect(() => {
     if (
       !enabled ||
+      blocked ||
       !matchId ||
       isBiddingPhase ||
       bidWinner !== mySymbol ||
@@ -144,7 +150,7 @@ export const useTournamentWatchdog = (
         moveFallbackRef.current = null;
       }
     };
-  }, [enabled, matchId, isBiddingPhase, bidWinner, mySymbol, winner, isProcessing, onForceMove]);
+  }, [enabled, blocked, matchId, isBiddingPhase, bidWinner, mySymbol, winner, isProcessing, onForceMove]);
   
   // Cleanup on unmount
   useEffect(() => {
