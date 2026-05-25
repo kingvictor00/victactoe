@@ -67,28 +67,15 @@ const WINNING_COMBINATIONS = [
   [0, 4, 8], [2, 4, 6],
 ];
 
-const INITIAL_COINS = 100;
 const PHASE_TIME = 20; // 20 seconds for bidding and moves
 const BID_RESULT_DELAY = 3000; // 3 seconds to show bid results
 const ROUND_RESULT_DELAY = 3000; // 3 seconds to show round results
 const COIN_TOSS_ANIMATION_TIME = 2000; // 2 seconds for coin toss animation
 const COIN_TOSS_TIMEOUT = 20000; // 20s grace before fallback to finalize bids
 
-// Helper: ordinal suffix
-const getOrdinal = (n: number): string => {
-  const s = ["th", "st", "nd", "rd"];
-  const v = n % 100;
-  return n + (s[(v - 20) % 10] || s[v] || s[0]);
-};
-
 // Convert board string to array
 const boardStringToArray = (boardStr: string): Board => {
   return boardStr.split('').map(c => c === '-' ? null : c as Player);
-};
-
-// Convert board array to string
-const boardArrayToString = (board: Board): string => {
-  return board.map(c => c === null ? '-' : c).join('');
 };
 
 const evaluateBoardState = (currentBoard: Board, p1Coins: number, p2Coins: number): { winner: Player | "tie" | null; line: number[] | null } => {
@@ -727,17 +714,6 @@ export default function TournamentGame({
     notification,
     isCoinFlipping,
   ]);
-
-  const checkWinner = useCallback((currentBoard: Board, p1Coins: number, p2Coins: number): { winner: Player | "tie" | null; line: number[] | null } => {
-    return evaluateBoardState(currentBoard, p1Coins, p2Coins);
-  }, []);
-
-  const getEmptyCells = (currentBoard: Board): number[] => {
-    return currentBoard.reduce<number[]>((acc, cell, idx) => {
-      if (cell === null) acc.push(idx);
-      return acc;
-    }, []);
-  };
 
   const applyMoveUpdate = useCallback(async (matchSnapshot: TournamentMatch, index: number, _moveSymbol: Player) => {
     const snapshotBoard = boardStringToArray(matchSnapshot.board);
