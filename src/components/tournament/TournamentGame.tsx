@@ -819,6 +819,18 @@ export default function TournamentGame({
   const handleTimerExpire = useCallback(async () => {
     if (!currentMatch || !matchInfo || currentMatch.match_winner || currentMatch.winner || isCoinFlipping) return;
 
+    // Dedupe: a phase deadline must be processed at most once per client,
+    // no matter how many sources (server timer, watchdog) try to fire it.
+    const deadlineKey = `${currentMatch.id}:${currentMatch.current_round}:${currentMatch.phase_deadline ?? ""}:${currentMatch.is_bidding_phase ? "bid" : "move"}`;
+    if (expiredDeadlineRef.current === deadlineKey) return;
+    expiredDeadlineRef.current = deadlineKey;
+
+    const recordAutoOnce = () => {
+      if (recordedAutoForDeadlineRef.current === deadlineKey) return;
+      recordedAutoForDeadlineRef.current = deadlineKey;
+      afkActionsRef.current.recordAutoAction();
+    };
+
     if (currentMatch.is_bidding_phase) {
       let localTimedOut = false;
 
@@ -838,7 +850,7 @@ export default function TournamentGame({
       }
 
       if (localTimedOut) {
-        afkActionsRef.current.recordAutoAction();
+        recordAutoOnce();
       }
 
       try {
@@ -852,7 +864,7 @@ export default function TournamentGame({
     }
 
     if (matchInfo.mySymbol === currentMatch.current_turn) {
-      afkActionsRef.current.recordAutoAction();
+      recordAutoOnce();
     }
 
     try {
@@ -861,7 +873,7 @@ export default function TournamentGame({
       console.error("Failed to expire move phase:", error);
       fetchData();
     }
-  }, [currentMatch, matchInfo, runMatchAction, fetchData]);
+  }, [currentMatch, matchInfo, runMatchAction, fetchData, isCoinFlipping]);
 
   const timeLeft = useServerTimer(
     currentMatch?.phase_deadline || null,
