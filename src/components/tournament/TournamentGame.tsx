@@ -1624,7 +1624,7 @@ export default function TournamentGame({
         <div className="flex-1 flex flex-col items-center justify-center min-h-0">
           {/* AFK Warning Overlay — compact banner */}
           <AnimatePresence>
-            {afkActions.isAway && afkActions.recoveryCountdown !== null && (
+            {afkActions.isAway && afkActions.recoveryCountdown !== null && !heartbeat.opponentDisconnected && (
               <motion.div
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
