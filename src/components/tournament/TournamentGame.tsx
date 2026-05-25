@@ -963,6 +963,10 @@ export default function TournamentGame({
       isProcessing,
       winner,
       enabled: gameStarted && !showTournamentWinner,
+      // Block all auto-fallbacks while an overlay/coin-flip is active or the
+      // opponent is mid-disconnect — otherwise we double-fire with the server
+      // timer and the game ends up "playing on its own".
+      blocked: !!notification || isCoinFlipping || heartbeat.opponentDisconnected,
     },
     handleForceBid,
     handleForceMove,
