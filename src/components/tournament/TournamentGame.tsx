@@ -180,12 +180,6 @@ export default function TournamentGame({
   const { isMuted, toggleMute, play } = useGameSounds();
   const { isMusicMuted, toggleMusic } = useBackgroundMusic();
 
-  const opponentId = useMemo(() => {
-    if (!currentMatch) return null;
-    return currentMatch.player1_id === currentPlayerId
-      ? currentMatch.player2_id
-      : currentMatch.player1_id;
-  }, [currentMatch, currentPlayerId]);
 
   // Get current player
   const currentPlayer = useMemo(() =>
