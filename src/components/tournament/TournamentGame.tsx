@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Trophy, Users, Check, Loader2, ArrowLeft, Coins, Clock, ArrowRight, Volume2, VolumeX, Music, AlertTriangle, WifiOff } from "lucide-react";
+import { Trophy, Users, Check, Loader2, ArrowLeft, Coins, Clock, ArrowRight, Volume2, VolumeX, Music } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import FloatingBackground from "@/components/ui/FloatingBackground";
 import ConfirmLeaveDialog from "@/components/ui/ConfirmLeaveDialog";
@@ -11,8 +11,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useTournamentWatchdog } from "@/hooks/useTournamentWatchdog";
 import { useGameSounds } from "@/hooks/useGameSounds";
 import { useBackgroundMusic } from "@/hooks/useBackgroundMusic";
-import { useAfkDetection } from "@/hooks/useAfkDetection";
-import { useHeartbeat } from "@/hooks/useHeartbeat";
 import { useServerTimer } from "@/hooks/useServerTimer";
 import { clearMatchSession } from "@/hooks/usePlayerIdentity";
 import CoinFlipAnimation from "@/components/ui/CoinFlipAnimation";
@@ -75,7 +73,7 @@ const PHASE_TIME = 20; // 20 seconds for bidding and moves
 const BID_RESULT_DELAY = 3000; // 3 seconds to show bid results
 const ROUND_RESULT_DELAY = 3000; // 3 seconds to show round results
 const COIN_TOSS_ANIMATION_TIME = 2000; // 2 seconds for coin toss animation
-const COIN_TOSS_TIMEOUT = 5000; // 5 second timeout for P1's result
+const COIN_TOSS_TIMEOUT = 20000; // 20s grace before fallback to finalize bids
 
 // Helper: ordinal suffix
 const getOrdinal = (n: number): string => {
@@ -174,29 +172,20 @@ export default function TournamentGame({
   const byeCheckDoneRef = useRef(false);
   const roundTransitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Refs to break circular initialization dependencies (TDZ)
-  const afkActionsRef = useRef<{ recordAutoAction: () => void; recordManualAction: () => void }>({ recordAutoAction: () => {}, recordManualAction: () => {} });
   // Deduplicate timer-expire & auto-action so a single phase deadline cannot
   // be processed twice (server timer + watchdog double-fire bug).
   const expiredDeadlineRef = useRef<string | null>(null);
-  const recordedAutoForDeadlineRef = useRef<string | null>(null);
   const handleMatchCompleteRef = useRef<(w: "player1" | "player2") => Promise<void>>(async () => {});
   const { toast } = useToast();
   const { isMuted, toggleMute, play } = useGameSounds();
   const { isMusicMuted, toggleMusic } = useBackgroundMusic();
 
-  // Heartbeat: send own heartbeat + detect opponent disconnects
   const opponentId = useMemo(() => {
     if (!currentMatch) return null;
     return currentMatch.player1_id === currentPlayerId
       ? currentMatch.player2_id
       : currentMatch.player1_id;
   }, [currentMatch, currentPlayerId]);
-
-  const heartbeat = useHeartbeat({
-    playerId: currentPlayerId,
-    opponentId,
-    enabled: !!currentMatch && currentMatch.status === 'playing' && !showTournamentWinner,
-  });
 
   // Get current player
   const currentPlayer = useMemo(() =>
