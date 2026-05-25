@@ -814,32 +814,12 @@ export default function TournamentGame({
     if (expiredDeadlineRef.current === deadlineKey) return;
     expiredDeadlineRef.current = deadlineKey;
 
-    const recordAutoOnce = () => {
-      if (recordedAutoForDeadlineRef.current === deadlineKey) return;
-      recordedAutoForDeadlineRef.current = deadlineKey;
-      afkActionsRef.current.recordAutoAction();
-    };
-
     if (currentMatch.is_bidding_phase) {
-      let localTimedOut = false;
-
-      if (currentMatch.player1_bid === null) {
-        if (matchInfo.isPlayer1) localTimedOut = true;
-      }
-
-      if (currentMatch.player2_bid === null) {
-        if (!matchInfo.isPlayer1) localTimedOut = true;
-      }
-
       if (
         currentMatch.player1_bid !== null &&
         currentMatch.player2_bid !== null
       ) {
         return;
-      }
-
-      if (localTimedOut) {
-        recordAutoOnce();
       }
 
       try {
@@ -850,10 +830,6 @@ export default function TournamentGame({
       }
 
       return;
-    }
-
-    if (matchInfo.mySymbol === currentMatch.current_turn) {
-      recordAutoOnce();
     }
 
     try {
