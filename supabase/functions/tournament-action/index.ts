@@ -717,6 +717,14 @@ serve(async (req) => {
           });
         }
 
+        if (match.phase_deadline && new Date(match.phase_deadline).getTime() > Date.now()) {
+          return json({
+            success: true,
+            action,
+            match,
+          });
+        }
+
         if (match.is_bidding_phase) {
           const updateData: Record<string, number> = {};
 

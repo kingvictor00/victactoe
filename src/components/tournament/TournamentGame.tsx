@@ -8,7 +8,6 @@ import TournamentWinner from "./TournamentWinner";
 import RobohashAvatar from "@/components/ui/RobohashAvatar";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
-import { useTournamentWatchdog } from "@/hooks/useTournamentWatchdog";
 import { useGameSounds } from "@/hooks/useGameSounds";
 import { useBackgroundMusic } from "@/hooks/useBackgroundMusic";
 import { useServerTimer } from "@/hooks/useServerTimer";
@@ -68,28 +67,15 @@ const WINNING_COMBINATIONS = [
   [0, 4, 8], [2, 4, 6],
 ];
 
-const INITIAL_COINS = 100;
 const PHASE_TIME = 20; // 20 seconds for bidding and moves
 const BID_RESULT_DELAY = 3000; // 3 seconds to show bid results
 const ROUND_RESULT_DELAY = 3000; // 3 seconds to show round results
 const COIN_TOSS_ANIMATION_TIME = 2000; // 2 seconds for coin toss animation
 const COIN_TOSS_TIMEOUT = 20000; // 20s grace before fallback to finalize bids
 
-// Helper: ordinal suffix
-const getOrdinal = (n: number): string => {
-  const s = ["th", "st", "nd", "rd"];
-  const v = n % 100;
-  return n + (s[(v - 20) % 10] || s[v] || s[0]);
-};
-
 // Convert board string to array
 const boardStringToArray = (boardStr: string): Board => {
   return boardStr.split('').map(c => c === '-' ? null : c as Player);
-};
-
-// Convert board array to string
-const boardArrayToString = (board: Board): string => {
-  return board.map(c => c === null ? '-' : c).join('');
 };
 
 const evaluateBoardState = (currentBoard: Board, p1Coins: number, p2Coins: number): { winner: Player | "tie" | null; line: number[] | null } => {
@@ -107,30 +93,6 @@ const evaluateBoardState = (currentBoard: Board, p1Coins: number, p2Coins: numbe
   }
 
   return { winner: null, line: null };
-};
-
-const selectAutoMove = (currentBoard: Board, symbol: Player): number => {
-  const findLineMove = (target: Player) => {
-    for (const combo of WINNING_COMBINATIONS) {
-      const values = combo.map(index => currentBoard[index]);
-      const targetCount = values.filter(value => value === target).length;
-      const emptyCount = values.filter(value => value === null).length;
-
-      if (targetCount === 2 && emptyCount === 1) {
-        return combo.find(index => currentBoard[index] === null) ?? null;
-      }
-    }
-
-    return null;
-  };
-
-  return (
-    findLineMove(symbol) ??
-    findLineMove(symbol === "X" ? "O" : "X") ??
-    (currentBoard[4] === null ? 4 : null) ??
-    [0, 2, 6, 8].find(index => currentBoard[index] === null) ??
-    currentBoard.findIndex(cell => cell === null)
-  );
 };
 
 type NotificationType = "bid_win" | "bid_lose" | "tie_coin_toss" | "round_win" | "round_lose" | "match_win" | "match_lose" | "opponent_turn" | "your_turn" | "coin_toss_animation" | "opponent_forfeit" | "bye_advancement";
@@ -520,8 +482,9 @@ export default function TournamentGame({
     const p1Bid = currentMatch.player1_bid;
     const p2Bid = currentMatch.player2_bid;
     
-    // Both bids are in - only P1 resolves to avoid race conditions
-    if (p1Bid !== null && p2Bid !== null) {
+    // Both bids are in — only Player 1 resolves to avoid duplicate client-side finals.
+    // Deadline expiry still runs through the backend when a player does not act.
+    if (matchInfo.isPlayer1 && p1Bid !== null && p2Bid !== null) {
       isResolvingBidsRef.current = true;
       setNotification(null);
       resolveBids(p1Bid, p2Bid);
@@ -752,17 +715,6 @@ export default function TournamentGame({
     isCoinFlipping,
   ]);
 
-  const checkWinner = useCallback((currentBoard: Board, p1Coins: number, p2Coins: number): { winner: Player | "tie" | null; line: number[] | null } => {
-    return evaluateBoardState(currentBoard, p1Coins, p2Coins);
-  }, []);
-
-  const getEmptyCells = (currentBoard: Board): number[] => {
-    return currentBoard.reduce<number[]>((acc, cell, idx) => {
-      if (cell === null) acc.push(idx);
-      return acc;
-    }, []);
-  };
-
   const applyMoveUpdate = useCallback(async (matchSnapshot: TournamentMatch, index: number, _moveSymbol: Player) => {
     const snapshotBoard = boardStringToArray(matchSnapshot.board);
     if (snapshotBoard[index] !== null || matchSnapshot.winner || matchSnapshot.match_winner) {
@@ -788,15 +740,6 @@ export default function TournamentGame({
       return null;
     }
   }, [runMatchAction]);
-
-  const autoPlayMove = useCallback(async () => {
-    if (!currentMatch || !matchInfo) return;
-
-    const moveIndex = selectAutoMove(board, matchInfo.mySymbol);
-    if (moveIndex < 0) return;
-
-    await makeMove(moveIndex);
-  }, [board, currentMatch, matchInfo]);
 
   // Server-synced timer using RAF — resolves from authoritative match state
   const handleTimerExpire = useCallback(async () => {
@@ -864,54 +807,17 @@ export default function TournamentGame({
     }
   }, [currentMatch, matchInfo, play, runMatchAction, toast]);
 
-  // Watchdog hook for timeout failsafes - placed after handlers are defined
-  const handleForceBid = useCallback(() => {
-    void handleTimerExpire();
-  }, [handleTimerExpire]);
-  
-  const handleForceMove = useCallback(() => {
-    void handleTimerExpire();
-  }, [handleTimerExpire]);
-  
-  const handleForceRefresh = useCallback(() => {
-    fetchData();
-  }, [fetchData]);
-
-  useTournamentWatchdog(
-    {
-      matchId: currentMatch?.id || null,
-      isPlayer1: matchInfo?.isPlayer1 || false,
-      isBiddingPhase,
-      hasSubmittedBid: hasSubmittedBidRef.current,
-      bidWinner: bidWinner || null,
-      mySymbol: matchInfo?.mySymbol || "X",
-      isProcessing,
-      winner,
-      enabled: gameStarted && !showTournamentWinner,
-      // Block auto-fallbacks while an overlay/coin-flip is active so we don't
-      // double-fire with the server timer.
-      blocked: !!notification || isCoinFlipping,
-    },
-    handleForceBid,
-    handleForceMove,
-    handleForceRefresh
-  );
-
-  // Safety timeout: force-clear coin flip animation after max 6 seconds
+  // Safety timeout: recover stale coin-flip state without unlocking the board underneath.
   useEffect(() => {
     if (!isCoinFlipping) return;
 
     const safetyTimer = setTimeout(() => {
-      console.warn('[CoinFlip] Safety timeout — forcing coin flip clear');
-      setIsCoinFlipping(false);
-      if (notification?.type === "coin_toss_animation") {
-        setNotification(null);
-      }
-      setIsProcessing(false);
-    }, 6000);
+      console.warn('[CoinFlip] Safety timeout — refreshing authoritative match state');
+      fetchData();
+    }, COIN_TOSS_TIMEOUT + COIN_TOSS_ANIMATION_TIME);
 
     return () => clearTimeout(safetyTimer);
-  }, [isCoinFlipping, notification?.type]);
+  }, [fetchData, isCoinFlipping]);
 
   const resolveBids = useCallback(async (p1Bid: number, p2Bid: number) => {
     if (!currentMatch || !matchInfo) return;
@@ -999,7 +905,7 @@ export default function TournamentGame({
   }, [currentMatch, matchInfo, runMatchAction, play, fetchData]);
 
   const makeMove = useCallback(async (index: number) => {
-    if (!gameStarted || !isMyTurn || board[index] !== null || winner || !currentMatch || !matchInfo || isBiddingPhase || bidWinner !== matchInfo.mySymbol || isCoinFlipping) {
+    if (!gameStarted || !isMyTurn || board[index] !== null || winner || !currentMatch || !matchInfo || isBiddingPhase || bidWinner !== matchInfo.mySymbol || isCoinFlipping || isProcessing || !!notification || !bidResultDismissedRef.current) {
       return;
     }
 
@@ -1058,7 +964,7 @@ export default function TournamentGame({
     }
 
     setIsProcessing(false);
-  }, [gameStarted, isMyTurn, board, winner, currentMatch, matchInfo, isBiddingPhase, bidWinner, applyMoveUpdate, play]);
+  }, [gameStarted, isMyTurn, board, winner, currentMatch, matchInfo, isBiddingPhase, bidWinner, isCoinFlipping, isProcessing, notification, applyMoveUpdate, play]);
 
   const handleMatchComplete = useCallback(async (matchWinnerStr: "player1" | "player2") => {
     if (!currentMatch || !matchInfo) return;
@@ -1639,7 +1545,7 @@ export default function TournamentGame({
                   key={index}
                   className={`game-cell ${cell === "X" ? "x" : cell === "O" ? "o" : ""} ${winningLine?.includes(index) ? "animate-winner-glow" : ""}`}
                   onClick={() => makeMove(index)}
-                  disabled={cell !== null || !isMyTurn || !!winner || isBiddingPhase || bidWinner !== matchInfo?.mySymbol || isProcessing}
+                  disabled={cell !== null || !isMyTurn || !!winner || isBiddingPhase || bidWinner !== matchInfo?.mySymbol || isProcessing || isCoinFlipping || !!notification || !bidResultDismissedRef.current}
                   whileTap={{ scale: 0.95 }}
                 >
                   <AnimatePresence mode="wait">
