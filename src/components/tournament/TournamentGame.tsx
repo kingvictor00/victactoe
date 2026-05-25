@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Trophy, Users, Check, Loader2, ArrowLeft, Coins, Clock, ArrowRight, Volume2, VolumeX, Music, AlertTriangle, WifiOff } from "lucide-react";
+import { Trophy, Users, Check, Loader2, ArrowLeft, Coins, Clock, ArrowRight, Volume2, VolumeX, Music } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import FloatingBackground from "@/components/ui/FloatingBackground";
 import ConfirmLeaveDialog from "@/components/ui/ConfirmLeaveDialog";
@@ -11,8 +11,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useTournamentWatchdog } from "@/hooks/useTournamentWatchdog";
 import { useGameSounds } from "@/hooks/useGameSounds";
 import { useBackgroundMusic } from "@/hooks/useBackgroundMusic";
-import { useAfkDetection } from "@/hooks/useAfkDetection";
-import { useHeartbeat } from "@/hooks/useHeartbeat";
 import { useServerTimer } from "@/hooks/useServerTimer";
 import { clearMatchSession } from "@/hooks/usePlayerIdentity";
 import CoinFlipAnimation from "@/components/ui/CoinFlipAnimation";
@@ -75,7 +73,7 @@ const PHASE_TIME = 20; // 20 seconds for bidding and moves
 const BID_RESULT_DELAY = 3000; // 3 seconds to show bid results
 const ROUND_RESULT_DELAY = 3000; // 3 seconds to show round results
 const COIN_TOSS_ANIMATION_TIME = 2000; // 2 seconds for coin toss animation
-const COIN_TOSS_TIMEOUT = 5000; // 5 second timeout for P1's result
+const COIN_TOSS_TIMEOUT = 20000; // 20s grace before fallback to finalize bids
 
 // Helper: ordinal suffix
 const getOrdinal = (n: number): string => {
@@ -174,29 +172,14 @@ export default function TournamentGame({
   const byeCheckDoneRef = useRef(false);
   const roundTransitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Refs to break circular initialization dependencies (TDZ)
-  const afkActionsRef = useRef<{ recordAutoAction: () => void; recordManualAction: () => void }>({ recordAutoAction: () => {}, recordManualAction: () => {} });
   // Deduplicate timer-expire & auto-action so a single phase deadline cannot
   // be processed twice (server timer + watchdog double-fire bug).
   const expiredDeadlineRef = useRef<string | null>(null);
-  const recordedAutoForDeadlineRef = useRef<string | null>(null);
   const handleMatchCompleteRef = useRef<(w: "player1" | "player2") => Promise<void>>(async () => {});
   const { toast } = useToast();
   const { isMuted, toggleMute, play } = useGameSounds();
   const { isMusicMuted, toggleMusic } = useBackgroundMusic();
 
-  // Heartbeat: send own heartbeat + detect opponent disconnects
-  const opponentId = useMemo(() => {
-    if (!currentMatch) return null;
-    return currentMatch.player1_id === currentPlayerId
-      ? currentMatch.player2_id
-      : currentMatch.player1_id;
-  }, [currentMatch, currentPlayerId]);
-
-  const heartbeat = useHeartbeat({
-    playerId: currentPlayerId,
-    opponentId,
-    enabled: !!currentMatch && currentMatch.status === 'playing' && !showTournamentWinner,
-  });
 
   // Get current player
   const currentPlayer = useMemo(() =>
@@ -825,32 +808,12 @@ export default function TournamentGame({
     if (expiredDeadlineRef.current === deadlineKey) return;
     expiredDeadlineRef.current = deadlineKey;
 
-    const recordAutoOnce = () => {
-      if (recordedAutoForDeadlineRef.current === deadlineKey) return;
-      recordedAutoForDeadlineRef.current = deadlineKey;
-      afkActionsRef.current.recordAutoAction();
-    };
-
     if (currentMatch.is_bidding_phase) {
-      let localTimedOut = false;
-
-      if (currentMatch.player1_bid === null) {
-        if (matchInfo.isPlayer1) localTimedOut = true;
-      }
-
-      if (currentMatch.player2_bid === null) {
-        if (!matchInfo.isPlayer1) localTimedOut = true;
-      }
-
       if (
         currentMatch.player1_bid !== null &&
         currentMatch.player2_bid !== null
       ) {
         return;
-      }
-
-      if (localTimedOut) {
-        recordAutoOnce();
       }
 
       try {
@@ -861,10 +824,6 @@ export default function TournamentGame({
       }
 
       return;
-    }
-
-    if (matchInfo.mySymbol === currentMatch.current_turn) {
-      recordAutoOnce();
     }
 
     try {
@@ -885,7 +844,6 @@ export default function TournamentGame({
     if (!currentMatch || !matchInfo || hasSubmittedBidRef.current) return;
 
     hasSubmittedBidRef.current = true;
-    if (!isAuto) afkActionsRef.current.recordManualAction();
     play("bidPlace");
 
     const actualBid = Math.max(1, Math.min(bidAmount, matchInfo.myCoins));
@@ -919,39 +877,6 @@ export default function TournamentGame({
     fetchData();
   }, [fetchData]);
 
-  // Forfeit handler for AFK system
-  const handleAfkForfeit = useCallback(async () => {
-    if (!currentMatch || !matchInfo || currentMatch.status !== 'playing') return;
-
-    try {
-      await runMatchAction(currentMatch.id, {
-        action: "forfeit_match",
-        reason: "afk",
-      });
-      console.warn('[AFK] Player forfeited due to inactivity');
-    } catch (error) {
-      console.error("Failed to process AFK forfeit:", error);
-      fetchData();
-    }
-  }, [currentMatch, matchInfo, runMatchAction, fetchData]);
-
-  // AFK detection hook
-  const afkActions = useAfkDetection(
-    {
-      enabled: gameStarted && !showTournamentWinner && !winner,
-      matchId: currentMatch?.id || null,
-      isMyTurn,
-      isBiddingPhase,
-      gameStarted,
-      winner,
-      matchWinner: currentMatch?.match_winner || null,
-    },
-    handleAfkForfeit,
-  );
-
-  // Keep refs in sync so callbacks defined earlier can use them
-  afkActionsRef.current = afkActions;
-
   useTournamentWatchdog(
     {
       matchId: currentMatch?.id || null,
@@ -963,75 +888,14 @@ export default function TournamentGame({
       isProcessing,
       winner,
       enabled: gameStarted && !showTournamentWinner,
-      // Block all auto-fallbacks while an overlay/coin-flip is active or the
-      // opponent is mid-disconnect — otherwise we double-fire with the server
-      // timer and the game ends up "playing on its own".
-      blocked: !!notification || isCoinFlipping || heartbeat.opponentDisconnected,
+      // Block auto-fallbacks while an overlay/coin-flip is active so we don't
+      // double-fire with the server timer.
+      blocked: !!notification || isCoinFlipping,
     },
     handleForceBid,
     handleForceMove,
     handleForceRefresh
   );
-
-  // beforeunload: mark as "left" + forfeit if player closes tab mid-match
-  useEffect(() => {
-    if (!currentMatch || currentMatch.status !== 'playing' || !matchInfo || showTournamentWinner) return;
-
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = '';
-      
-      // Mark as "left" so opponent knows it's intentional
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/tournament_players?id=eq.${currentPlayerId}`;
-      const headers = {
-        'Content-Type': 'application/json',
-        'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        'Prefer': 'return=minimal',
-      };
-      const body = JSON.stringify({ connection_status: 'left' });
-      navigator.sendBeacon?.(url); // Best-effort
-      
-      // Also try to forfeit
-      const matchUrl = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/tournament_matches?id=eq.${currentMatch.id}`;
-      const winnerStr = matchInfo.isPlayer1 ? "player2" : "player1";
-      navigator.sendBeacon?.(matchUrl);
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [currentMatch?.id, currentMatch?.status, matchInfo?.isPlayer1, showTournamentWinner, currentPlayerId]);
-
-  // Opponent disconnect grace period expiry → auto-forfeit opponent
-  useEffect(() => {
-    if (!heartbeat.opponentDisconnected || heartbeat.opponentGraceRemaining === null) return;
-    
-    if (heartbeat.opponentGraceRemaining <= 0 && currentMatch && matchInfo && currentMatch.status === 'playing') {
-      const doForfeit = async () => {
-        try {
-          await runMatchAction(currentMatch.id, {
-            action: "finalize_match",
-          });
-        } catch {
-          // Ignore and fall through to authoritative forfeit.
-        }
-
-        try {
-          await invokeTournamentAction<TournamentMatch>({
-            action: "forfeit_match",
-            playerId: opponentId!,
-            matchId: currentMatch.id,
-            reason: "disconnect",
-          });
-          fetchData();
-        } catch (error) {
-          console.error("Failed to forfeit disconnected opponent:", error);
-        }
-      };
-      
-      void doForfeit();
-    }
-  }, [heartbeat.opponentDisconnected, heartbeat.opponentGraceRemaining, currentMatch, matchInfo, opponentId, runMatchAction, fetchData]);
 
   // Safety timeout: force-clear coin flip animation after max 6 seconds
   useEffect(() => {
@@ -1140,7 +1004,6 @@ export default function TournamentGame({
     }
 
     setIsProcessing(true);
-    afkActionsRef.current.recordManualAction();
     play("markPlace");
 
     const moveResult = await applyMoveUpdate(currentMatch, index, matchInfo.mySymbol);
@@ -1622,48 +1485,6 @@ export default function TournamentGame({
 
         {/* Middle: Board + Overlays (flex-1 fills remaining space) */}
         <div className="flex-1 flex flex-col items-center justify-center min-h-0">
-          {/* AFK Warning Overlay — compact banner */}
-          <AnimatePresence>
-            {afkActions.isAway && afkActions.recoveryCountdown !== null && !heartbeat.opponentDisconnected && (
-              <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="w-full rounded-xl bg-destructive/10 ring-1 ring-destructive px-3 py-2 flex items-center gap-3 mb-2"
-              >
-                <AlertTriangle className="w-5 h-5 text-destructive shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-destructive">AFK — forfeit in {afkActions.recoveryCountdown}s</p>
-                </div>
-                <button
-                  onClick={() => afkActions.recordManualAction()}
-                  className="btn-game-primary px-3 py-1 text-xs shrink-0 rounded-lg"
-                >
-                  I'm here!
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Opponent Disconnected Overlay — compact banner */}
-          <AnimatePresence>
-            {heartbeat.opponentDisconnected && heartbeat.opponentGraceRemaining !== null && heartbeat.opponentGraceRemaining > 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="w-full rounded-xl bg-amber-500/10 ring-1 ring-amber-500 px-3 py-2 flex items-center gap-3 mb-2"
-              >
-                <WifiOff className="w-5 h-5 text-amber-500 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-amber-600 dark:text-amber-400">
-                    {matchInfo?.opponent.player_name} disconnected — {heartbeat.opponentGraceRemaining}s
-                  </p>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
           {/* Notification Overlay */}
           <AnimatePresence>
             {notification && (
