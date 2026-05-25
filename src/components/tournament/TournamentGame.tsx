@@ -8,7 +8,6 @@ import TournamentWinner from "./TournamentWinner";
 import RobohashAvatar from "@/components/ui/RobohashAvatar";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
-import { useTournamentWatchdog } from "@/hooks/useTournamentWatchdog";
 import { useGameSounds } from "@/hooks/useGameSounds";
 import { useBackgroundMusic } from "@/hooks/useBackgroundMusic";
 import { useServerTimer } from "@/hooks/useServerTimer";
@@ -107,30 +106,6 @@ const evaluateBoardState = (currentBoard: Board, p1Coins: number, p2Coins: numbe
   }
 
   return { winner: null, line: null };
-};
-
-const selectAutoMove = (currentBoard: Board, symbol: Player): number => {
-  const findLineMove = (target: Player) => {
-    for (const combo of WINNING_COMBINATIONS) {
-      const values = combo.map(index => currentBoard[index]);
-      const targetCount = values.filter(value => value === target).length;
-      const emptyCount = values.filter(value => value === null).length;
-
-      if (targetCount === 2 && emptyCount === 1) {
-        return combo.find(index => currentBoard[index] === null) ?? null;
-      }
-    }
-
-    return null;
-  };
-
-  return (
-    findLineMove(symbol) ??
-    findLineMove(symbol === "X" ? "O" : "X") ??
-    (currentBoard[4] === null ? 4 : null) ??
-    [0, 2, 6, 8].find(index => currentBoard[index] === null) ??
-    currentBoard.findIndex(cell => cell === null)
-  );
 };
 
 type NotificationType = "bid_win" | "bid_lose" | "tie_coin_toss" | "round_win" | "round_lose" | "match_win" | "match_lose" | "opponent_turn" | "your_turn" | "coin_toss_animation" | "opponent_forfeit" | "bye_advancement";
