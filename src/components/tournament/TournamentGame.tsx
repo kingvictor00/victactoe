@@ -175,6 +175,10 @@ export default function TournamentGame({
   const roundTransitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Refs to break circular initialization dependencies (TDZ)
   const afkActionsRef = useRef<{ recordAutoAction: () => void; recordManualAction: () => void }>({ recordAutoAction: () => {}, recordManualAction: () => {} });
+  // Deduplicate timer-expire & auto-action so a single phase deadline cannot
+  // be processed twice (server timer + watchdog double-fire bug).
+  const expiredDeadlineRef = useRef<string | null>(null);
+  const recordedAutoForDeadlineRef = useRef<string | null>(null);
   const handleMatchCompleteRef = useRef<(w: "player1" | "player2") => Promise<void>>(async () => {});
   const { toast } = useToast();
   const { isMuted, toggleMute, play } = useGameSounds();
