@@ -495,8 +495,9 @@ export default function TournamentGame({
     const p1Bid = currentMatch.player1_bid;
     const p2Bid = currentMatch.player2_bid;
     
-    // Both bids are in - only P1 resolves to avoid race conditions
-    if (p1Bid !== null && p2Bid !== null) {
+    // Both bids are in — only Player 1 resolves to avoid duplicate client-side finals.
+    // Deadline expiry still runs through the backend when a player does not act.
+    if (matchInfo.isPlayer1 && p1Bid !== null && p2Bid !== null) {
       isResolvingBidsRef.current = true;
       setNotification(null);
       resolveBids(p1Bid, p2Bid);
