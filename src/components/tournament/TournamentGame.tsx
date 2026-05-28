@@ -1435,7 +1435,12 @@ export default function TournamentGame({
                 <p className="text-xs text-muted-foreground">
                   Waiting for {matchInfo.opponent.player_name} to bid...
                 </p>
-                <Loader2 className="w-4 h-4 mx-auto mt-1.5 animate-spin text-muted-foreground" />
+                <div className="flex items-center justify-center gap-2 mt-2">
+                  <div className={`timer-ring w-9 h-9 text-sm ${timeLeft <= 5 ? "text-game-warning" : "text-foreground"}`}>
+                    <Clock className="w-2.5 h-2.5 absolute top-0 right-0 opacity-50" />
+                    {timeLeft}s
+                  </div>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
@@ -1528,6 +1533,12 @@ export default function TournamentGame({
           {/* Opponent's Turn */}
           {!isBiddingPhase && !winner && !notification && !isProcessing && bidResultDismissedRef.current && bidWinner !== matchInfo?.mySymbol && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full rounded-xl bg-card p-3 text-center mb-2" style={{ boxShadow: 'var(--shadow-card)' }}>
+              <div className="flex items-center justify-center gap-2 mb-1">
+                <div className={`timer-ring w-9 h-9 text-sm ${timeLeft <= 5 ? "text-game-warning" : "text-foreground"}`}>
+                  <Clock className="w-2.5 h-2.5 absolute top-0 right-0 opacity-50" />
+                  {timeLeft}s
+                </div>
+              </div>
               <p className="font-medium text-sm mb-1">{matchInfo?.opponent.player_name} is thinking</p>
               <div className="flex items-center justify-center gap-1">
                 <motion.div className="w-1.5 h-1.5 rounded-full bg-muted-foreground" animate={{ y: [0, -6, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0 }} />
