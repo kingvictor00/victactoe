@@ -70,7 +70,7 @@ const WINNING_COMBINATIONS = [
 const PHASE_TIME = 20; // 20 seconds for bidding and moves
 const BID_RESULT_DELAY = 3000; // 3 seconds to show bid results
 const ROUND_RESULT_DELAY = 3000; // 3 seconds to show round results
-const COIN_TOSS_ANIMATION_TIME = 2000; // 2 seconds for coin toss animation
+const COIN_TOSS_ANIMATION_TIME = 3000; // 3 seconds for coin toss animation (visual delay so players see what's happening)
 const COIN_TOSS_TIMEOUT = 20000; // 20s grace before fallback to finalize bids
 
 // Convert board string to array
