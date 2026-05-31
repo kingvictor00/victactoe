@@ -520,7 +520,7 @@ export default function TournamentGame({
       setNotification(null);
       resolveBids(p1Bid, p2Bid);
     }
-  }, [currentMatch?.player1_bid, currentMatch?.player2_bid, currentMatch?.last_bid_result, currentMatch?.is_bidding_phase, currentMatch?.bid_winner, isBiddingPhase, matchInfo, isProcessing, notification?.type]);
+  }, [currentMatch?.player1_bid, currentMatch?.player2_bid, currentMatch?.last_bid_result, currentMatch?.is_bidding_phase, currentMatch?.bid_winner, isBiddingPhase, matchInfo, isProcessing, notification?.type, isCoinFlipping]);
 
   // Clear BYE state when a match is found
   useEffect(() => {
