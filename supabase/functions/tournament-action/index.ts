@@ -256,6 +256,11 @@ async function finalizeBids(admin: ReturnType<typeof createClient>, match: Tourn
     bidWinnerSymbol = toss[0] % 2 === 0 ? "X" : "O";
   }
 
+  // Account for the client-side announcement (coin flip + result reveal) so
+  // the move timer feels fresh when "Your turn" appears.
+  const isTie = match.player1_bid === match.player2_bid;
+  const ANNOUNCEMENT_MS = isTie ? 6000 : 3000; // 3s coin flip + 3s result, or just 3s result
+
   const { data } = await admin
     .from("tournament_matches")
     .update({
@@ -266,7 +271,7 @@ async function finalizeBids(admin: ReturnType<typeof createClient>, match: Tourn
       is_bidding_phase: false,
       player1_bid: null,
       player2_bid: null,
-      phase_deadline: new Date(Date.now() + PHASE_TIME * 1000).toISOString(),
+      phase_deadline: new Date(Date.now() + ANNOUNCEMENT_MS + PHASE_TIME * 1000).toISOString(),
       last_bid_result: {
         player1Bid: match.player1_bid,
         player2Bid: match.player2_bid,
