@@ -404,6 +404,26 @@ export default function TournamentGame({
   useEffect(() => {
     if (!currentMatch || !matchInfo) return;
     
+    // SYNC: As soon as both bids are in AND tied (while still in bidding phase),
+    // BOTH clients start the coin-flip animation locally. This guarantees both
+    // players see the animated coin before any result is announced.
+    if (
+      currentMatch.is_bidding_phase &&
+      currentMatch.player1_bid !== null &&
+      currentMatch.player2_bid !== null &&
+      currentMatch.player1_bid === currentMatch.player2_bid &&
+      !isCoinFlipping
+    ) {
+      coinFlipStartedAtRef.current = Date.now();
+      setIsCoinFlipping(true);
+      bidResultDismissedRef.current = false;
+      setNotification({
+        type: "coin_toss_animation",
+        message: "🪙 Tie! Coin Toss...",
+        subMessage: "Flipping the coin…",
+      });
+    }
+
     // P2: If we're showing coin toss animation and P1's authoritative result arrives via DB,
     // use that result directly — never generate our own
     if (notification?.type === "coin_toss_animation" && currentMatch.last_bid_result && !currentMatch.is_bidding_phase) {
@@ -424,19 +444,27 @@ export default function TournamentGame({
         const didWin = authoritativeWinner === matchInfo.mySymbol;
         const myBidAmount = matchInfo.isPlayer1 ? bidResult.player1Bid : bidResult.player2Bid;
         
-        setIsCoinFlipping(false);
-        setNotification({
-          type: "tie_coin_toss",
-          message: "🪙 Coin Toss Result!",
-          subMessage: `Both bid $${myBidAmount}. ${didWin ? "You" : matchInfo.opponent.player_name} won the toss!`,
-        });
-        
+        // Wait for the remaining animation time (measured from when the
+        // coin started flipping locally) before announcing the winner.
+        const startedAt = coinFlipStartedAtRef.current ?? Date.now();
+        const remaining = Math.max(0, COIN_TOSS_ANIMATION_TIME - (Date.now() - startedAt));
+
         setTimeout(() => {
-          bidResultDismissedRef.current = true;
-          setNotification(null);
-          setIsProcessing(false);
-          play("turnChange");
-        }, COIN_TOSS_ANIMATION_TIME);
+          setIsCoinFlipping(false);
+          setNotification({
+            type: "tie_coin_toss",
+            message: "🪙 Coin Toss Result!",
+            subMessage: `Both bid $${myBidAmount}. ${didWin ? "You" : matchInfo.opponent.player_name} won the toss!`,
+          });
+
+          setTimeout(() => {
+            bidResultDismissedRef.current = true;
+            setNotification(null);
+            setIsProcessing(false);
+            coinFlipStartedAtRef.current = null;
+            play("turnChange");
+          }, BID_RESULT_DELAY);
+        }, remaining);
       }
       return;
     }
