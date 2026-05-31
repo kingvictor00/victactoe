@@ -858,12 +858,18 @@ export default function TournamentGame({
     const isTie = p1Bid === p2Bid;
 
     if (isTie) {
-      setIsCoinFlipping(true);
-      setNotification({
-        type: "coin_toss_animation",
-        message: "🪙 Tie! Coin Toss...",
-        subMessage: "Flipping the coin…",
-      });
+      // The auto-resolve effect may have already started the animation on
+      // detection of equal bids — only start it here if it hasn't begun yet.
+      if (!isCoinFlipping) {
+        coinFlipStartedAtRef.current = Date.now();
+        setIsCoinFlipping(true);
+        bidResultDismissedRef.current = false;
+        setNotification({
+          type: "coin_toss_animation",
+          message: "🪙 Tie! Coin Toss...",
+          subMessage: "Flipping the coin…",
+        });
+      }
 
       if (!matchInfo.isPlayer1) {
         coinTossTimeoutRef.current = setTimeout(async () => {
@@ -895,7 +901,9 @@ export default function TournamentGame({
         }
 
         if (isTie) {
-          await new Promise((resolve) => setTimeout(resolve, COIN_TOSS_ANIMATION_TIME));
+          const startedAt = coinFlipStartedAtRef.current ?? Date.now();
+          const remaining = Math.max(0, COIN_TOSS_ANIMATION_TIME - (Date.now() - startedAt));
+          await new Promise((resolve) => setTimeout(resolve, remaining));
           setIsCoinFlipping(false);
         }
 
@@ -919,6 +927,7 @@ export default function TournamentGame({
           bidResultDismissedRef.current = true;
           setNotification(null);
           setIsProcessing(false);
+          coinFlipStartedAtRef.current = null;
           play("turnChange");
         }, BID_RESULT_DELAY);
       } else if (!isTie) {
