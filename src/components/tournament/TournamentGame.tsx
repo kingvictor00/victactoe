@@ -138,6 +138,9 @@ export default function TournamentGame({
   // be processed twice (server timer + watchdog double-fire bug).
   const expiredDeadlineRef = useRef<string | null>(null);
   const handleMatchCompleteRef = useRef<(w: "player1" | "player2") => Promise<void>>(async () => {});
+  // Tracks when the coin-flip animation started (for both players) so we can
+  // enforce a minimum visible animation duration before announcing the result.
+  const coinFlipStartedAtRef = useRef<number | null>(null);
   const { toast } = useToast();
   const { isMuted, toggleMute, play } = useGameSounds();
   const { isMusicMuted, toggleMusic } = useBackgroundMusic();
