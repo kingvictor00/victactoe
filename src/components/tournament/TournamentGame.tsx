@@ -916,11 +916,11 @@ export default function TournamentGame({
         setNotification({
           type: isTie ? "tie_coin_toss" : (didWin ? "bid_win" : "bid_lose"),
           message: isTie
-            ? "🪙 Coin Toss Result!"
-            : (didWin ? "🎯 You Won the Bid!" : `💻 ${matchInfo.opponent.player_name} Won!`),
+            ? `Both players bid $${myBidAmount}`
+            : `You bid $${myBidAmount} • Opponent bid $${oppBidAmount}`,
           subMessage: isTie
-            ? `Both bid $${myBidAmount}. ${didWin ? "You" : matchInfo.opponent.player_name} won the toss!`
-            : `You bid $${myBidAmount} vs $${oppBidAmount}`,
+            ? `${didWin ? "You" : matchInfo.opponent.player_name} won the toss!`
+            : `${didWin ? "You" : matchInfo.opponent.player_name} won the bid!`,
         });
 
         setTimeout(() => {
