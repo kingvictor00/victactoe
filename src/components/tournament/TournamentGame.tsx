@@ -453,8 +453,8 @@ export default function TournamentGame({
           setIsCoinFlipping(false);
           setNotification({
             type: "tie_coin_toss",
-            message: "🪙 Coin Toss Result!",
-            subMessage: `Both bid $${myBidAmount}. ${didWin ? "You" : matchInfo.opponent.player_name} won the toss!`,
+            message: `Both players bid $${myBidAmount}`,
+            subMessage: `${didWin ? "You" : matchInfo.opponent.player_name} won the toss!`,
           });
 
           setTimeout(() => {
@@ -490,12 +490,12 @@ export default function TournamentGame({
         
         setNotification({
           type: isTie ? "tie_coin_toss" : (didWin ? "bid_win" : "bid_lose"),
-          message: isTie 
-            ? "🪙 Coin Toss Result!" 
-            : (didWin ? "🎯 You Won the Bid!" : `💻 ${matchInfo.opponent.player_name} Won!`),
-          subMessage: isTie 
-            ? `Both bid $${myBidAmount}. ${didWin ? "You" : matchInfo.opponent.player_name} won the toss!`
-            : `You bid $${myBidAmount} vs $${oppBidAmount}`,
+          message: isTie
+            ? `Both players bid $${myBidAmount}`
+            : `You bid $${myBidAmount} • Opponent bid $${oppBidAmount}`,
+          subMessage: isTie
+            ? `${didWin ? "You" : matchInfo.opponent.player_name} won the toss!`
+            : `${didWin ? "You" : matchInfo.opponent.player_name} won the bid!`,
         });
         
         setTimeout(() => {
