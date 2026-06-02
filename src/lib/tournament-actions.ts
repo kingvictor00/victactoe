@@ -17,6 +17,7 @@ export interface TournamentActionPayload {
   bidAmount?: number;
   moveIndex?: number;
   reason?: string;
+  forfeitPlayerId?: string;
 }
 
 export interface MoveOutcome {

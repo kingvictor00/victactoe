@@ -13,6 +13,8 @@ import { useBackgroundMusic } from "@/hooks/useBackgroundMusic";
 import { useServerTimer } from "@/hooks/useServerTimer";
 import { clearMatchSession } from "@/hooks/usePlayerIdentity";
 import CoinFlipAnimation from "@/components/ui/CoinFlipAnimation";
+import DisconnectCard from "./DisconnectCard";
+import { useDisconnectMonitor } from "@/hooks/useDisconnectMonitor";
 import { 
   getRemainingPlayers,
 } from "@/lib/tournament-utils";
@@ -261,6 +263,27 @@ export default function TournamentGame({
 
     return response as MatchActionResponse;
   }, [currentPlayerId]);
+
+  // Lightweight disconnect/AFK monitor — opponent stall triggers 60s countdown + auto-forfeit.
+  const handleForfeitOpponent = useCallback(async () => {
+    if (!currentMatch || !matchInfo?.opponent || currentMatch.match_winner) return;
+    try {
+      await runMatchAction(currentMatch.id, {
+        action: "forfeit_match",
+        reason: "disconnect",
+        forfeitPlayerId: matchInfo.opponent.id,
+      });
+    } catch (err) {
+      console.error("Auto-forfeit failed:", err);
+    }
+  }, [currentMatch, matchInfo?.opponent, runMatchAction]);
+
+  const disconnect = useDisconnectMonitor({
+    playerId: currentPlayerId,
+    opponentId: matchInfo?.opponent?.id ?? null,
+    enabled: !!currentMatch && currentMatch.status === "playing" && !currentMatch.match_winner,
+    onForfeitOpponent: handleForfeitOpponent,
+  });
 
   // Initial fetch and subscriptions
   useEffect(() => {
@@ -1431,6 +1454,22 @@ export default function TournamentGame({
 
         {/* Middle: Board + Overlays (flex-1 fills remaining space) */}
         <div className="flex-1 flex flex-col items-center justify-center min-h-0">
+          {/* Disconnect / AFK card */}
+          <AnimatePresence>
+            {disconnect.selfDisconnected && (
+              <DisconnectCard key="self-dc" variant="self" onImBack={disconnect.imBack} />
+            )}
+            {!disconnect.selfDisconnected && disconnect.opponentDisconnected && (
+              <DisconnectCard
+                key="opp-dc"
+                variant="opponent"
+                opponentName={matchInfo?.opponent.player_name}
+                seconds={disconnect.countdownSeconds ?? 0}
+                total={disconnect.countdownTotal}
+              />
+            )}
+          </AnimatePresence>
+
           {/* Notification Overlay */}
           <AnimatePresence>
             {notification && (

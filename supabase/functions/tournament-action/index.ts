@@ -32,6 +32,7 @@ interface ActionBody {
   bidAmount?: number;
   moveIndex?: number;
   reason?: string;
+  forfeitPlayerId?: string;
 }
 
 interface TournamentPlayerRow {
@@ -797,7 +798,16 @@ serve(async (req) => {
       }
 
       case "forfeit_match": {
-        const matchWinner = match.player1_id === playerId ? "player2" : "player1";
+        // Optional forfeitPlayerId: caller (opponent) forfeits a disconnected player.
+        // When omitted, the caller themselves forfeits.
+        const forfeitedId = body.forfeitPlayerId && (body.forfeitPlayerId === match.player1_id || body.forfeitPlayerId === match.player2_id)
+          ? body.forfeitPlayerId
+          : playerId;
+        // Ensure caller is a participant
+        if (playerId !== match.player1_id && playerId !== match.player2_id) {
+          throw new HttpError(403, "Not a participant");
+        }
+        const matchWinner = match.player1_id === forfeitedId ? "player2" : "player1";
 
         const { data } = await admin
           .from("tournament_matches")
@@ -826,7 +836,7 @@ serve(async (req) => {
         await admin
           .from("tournament_players")
           .update(playerPatch)
-          .eq("id", playerId);
+          .eq("id", forfeitedId);
 
         const progression = await finalizeMatchProgression(admin, forfeitedMatch);
 
