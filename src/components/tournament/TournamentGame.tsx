@@ -997,9 +997,13 @@ export default function TournamentGame({
     setIsProcessing(true);
     play("markPlace");
 
+    // Optimistic UI: show the mark instantly while the server confirms the move
+    setOptimisticMove({ matchId: currentMatch.id, index, symbol: matchInfo.mySymbol });
+
     const moveResult = await applyMoveUpdate(currentMatch, index, matchInfo.mySymbol);
 
     if (!moveResult) {
+      setOptimisticMove(null);
       setIsProcessing(false);
       return;
     }
