@@ -264,6 +264,27 @@ export default function TournamentGame({
     return response as MatchActionResponse;
   }, [currentPlayerId]);
 
+  // Lightweight disconnect/AFK monitor — opponent stall triggers 60s countdown + auto-forfeit.
+  const handleForfeitOpponent = useCallback(async () => {
+    if (!currentMatch || !matchInfo?.opponent || currentMatch.match_winner) return;
+    try {
+      await runMatchAction(currentMatch.id, {
+        action: "forfeit_match",
+        reason: "disconnect",
+        forfeitPlayerId: matchInfo.opponent.id,
+      });
+    } catch (err) {
+      console.error("Auto-forfeit failed:", err);
+    }
+  }, [currentMatch, matchInfo?.opponent, runMatchAction]);
+
+  const disconnect = useDisconnectMonitor({
+    playerId: currentPlayerId,
+    opponentId: matchInfo?.opponent?.id ?? null,
+    enabled: !!currentMatch && currentMatch.status === "playing" && !currentMatch.match_winner,
+    onForfeitOpponent: handleForfeitOpponent,
+  });
+
   // Initial fetch and subscriptions
   useEffect(() => {
     let isMounted = true;
