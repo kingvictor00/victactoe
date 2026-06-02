@@ -116,6 +116,7 @@ export default function TournamentGame({
   const [allPlayers, setAllPlayers] = useState<TournamentPlayer[]>([]);
   const [tournamentName, setTournamentName] = useState("");
   const [currentMatch, setCurrentMatch] = useState<TournamentMatch | null>(null);
+  const [optimisticMove, setOptimisticMove] = useState<{ matchId: string; index: number; symbol: Player } | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [showConfirmLeave, setShowConfirmLeave] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -191,8 +192,29 @@ export default function TournamentGame({
   // Parse board from match
   const board = useMemo(() => {
     if (!currentMatch) return Array(9).fill(null) as Board;
-    return boardStringToArray(currentMatch.board);
-  }, [currentMatch]);
+    const parsed = boardStringToArray(currentMatch.board);
+    if (
+      optimisticMove &&
+      optimisticMove.matchId === currentMatch.id &&
+      parsed[optimisticMove.index] === null
+    ) {
+      parsed[optimisticMove.index] = optimisticMove.symbol;
+    }
+    return parsed;
+  }, [currentMatch, optimisticMove]);
+
+  // Clear optimistic mark once the authoritative board reflects it (or match changes)
+  useEffect(() => {
+    if (!optimisticMove) return;
+    if (!currentMatch || currentMatch.id !== optimisticMove.matchId) {
+      setOptimisticMove(null);
+      return;
+    }
+    const parsed = boardStringToArray(currentMatch.board);
+    if (parsed[optimisticMove.index] !== null) {
+      setOptimisticMove(null);
+    }
+  }, [currentMatch, optimisticMove]);
 
   const currentTurn = currentMatch?.current_turn as Player || "X";
   const isMyTurn = matchInfo?.mySymbol === currentTurn;
