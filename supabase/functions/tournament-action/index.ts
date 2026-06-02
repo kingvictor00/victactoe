@@ -32,6 +32,7 @@ interface ActionBody {
   bidAmount?: number;
   moveIndex?: number;
   reason?: string;
+  forfeitPlayerId?: string;
 }
 
 interface TournamentPlayerRow {
