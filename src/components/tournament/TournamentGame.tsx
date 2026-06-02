@@ -1454,6 +1454,22 @@ export default function TournamentGame({
 
         {/* Middle: Board + Overlays (flex-1 fills remaining space) */}
         <div className="flex-1 flex flex-col items-center justify-center min-h-0">
+          {/* Disconnect / AFK card */}
+          <AnimatePresence>
+            {disconnect.selfDisconnected && (
+              <DisconnectCard key="self-dc" variant="self" onImBack={disconnect.imBack} />
+            )}
+            {!disconnect.selfDisconnected && disconnect.opponentDisconnected && (
+              <DisconnectCard
+                key="opp-dc"
+                variant="opponent"
+                opponentName={matchInfo?.opponent.player_name}
+                seconds={disconnect.countdownSeconds ?? 0}
+                total={disconnect.countdownTotal}
+              />
+            )}
+          </AnimatePresence>
+
           {/* Notification Overlay */}
           <AnimatePresence>
             {notification && (
