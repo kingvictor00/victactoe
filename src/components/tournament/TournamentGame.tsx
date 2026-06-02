@@ -13,6 +13,8 @@ import { useBackgroundMusic } from "@/hooks/useBackgroundMusic";
 import { useServerTimer } from "@/hooks/useServerTimer";
 import { clearMatchSession } from "@/hooks/usePlayerIdentity";
 import CoinFlipAnimation from "@/components/ui/CoinFlipAnimation";
+import DisconnectCard from "./DisconnectCard";
+import { useDisconnectMonitor } from "@/hooks/useDisconnectMonitor";
 import { 
   getRemainingPlayers,
 } from "@/lib/tournament-utils";
