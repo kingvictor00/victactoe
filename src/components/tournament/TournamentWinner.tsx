@@ -2,6 +2,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Trophy, Home, Crown, Medal, Star } from "lucide-react";
 import { useMemo } from "react";
 import RobohashAvatar from "@/components/ui/RobohashAvatar";
+import { useBackgroundMusic } from "@/hooks/useBackgroundMusic";
 
 interface PlayerRanking {
   id: string;
@@ -25,6 +26,9 @@ export default function TournamentWinner({
   currentPlayerId,
   onHome,
 }: TournamentWinnerProps) {
+  // Switch to the soft leaderboard tune while this overlay is visible.
+  useBackgroundMusic(isOpen ? "leaderboard" : "default");
+
   const floatingStars = useMemo(() =>
     Array.from({ length: 30 }, (_, i) => ({
       id: i,
